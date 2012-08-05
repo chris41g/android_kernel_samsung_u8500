@@ -1,0 +1,6 @@
+
+obj-$(CONFIG_PROXIMITY_CM3607)	+= cm3607.o
+obj-$(CONFIG_PROXIMITY_GP2A)	+= gp2a_prox.o
+obj-$(CONFIG_PROXIMITY_TMD2672)	+= tmd2672.o
+obj-$(CONFIG_PROXIMITY_GP2A030)	+= gp2ap020.o
+

@@ -1,0 +1,351 @@
+#ifndef BOARD_SEC_U8500_H
+#define BOARD_SEC_U8500_H
+
+/* Previous board revisions not supported */
+#define GTI9060_R0_1	7
+
+#define JANICE_R0_0	8
+#define JANICE_R0_1	9
+#define JANICE_R0_2	10
+#define JANICE_R0_3	11
+#define JANICE_R0_4	12
+#define JANICE_R0_5	13
+#define JANICE_R0_6	14
+
+#define GAVINI_R0_0	7
+#define GAVINI_R0_0_A	8
+#define GAVINI_R0_0_B	9
+#define GAVINI_R0_0_A_EMUL 10
+#define GAVINI_R0_0_C	11	/* Rev0.0C */
+#define GAVINI_R0_0_D	12	/* Rev0.0D */
+#define GAVINI_R0_1	13	/* Rev0.1 */
+
+#define CODINA_R0_0	2
+#define CODINA_R0_1	3
+#define CODINA_R0_2	4
+#define CODINA_R0_3	5
+#define CODINA_R0_4	6
+#define CODINA_R0_5	7
+
+extern unsigned int system_rev;
+
+#define SEC_DBG_STM_APE_OPT	0x00000001
+#define SEC_DBG_STM_MODEM_OPT	0x00000002
+#define SEC_DBG_STM_VIA_SD_OPTS 0x00000003
+#define SEC_DBG_STM_FIDO_OPT	0x00000004
+#define SEC_DBG_1M_DBG_BUFF_OPT	0x00000010
+#define SEC_DBG_KDB_ENABLE_OPT	0x00000020
+#define SEC_DBG_PANIC_MSG_OPT	0x00000040
+#define SEC_DBG_RAMDUMP_OPT	0x00000080
+extern unsigned int sec_debug_settings;
+
+
+/* GPIO for GT-I9060 V0.1 boards */
+#define MEM_LDO_EN_GTI9060_R0_1	6
+#define SUBMPU_PWRON_GTI9060_R0_1	7
+#define GPS_RST_N_GTI9060_R0_1	21
+#define VT_CAM_STBY_GTI9060_R0_1	64
+#define VT_CAM_RST_GTI9060_R0_1	65
+#define VOL_UP_GTI9060_R0_1		67
+#define EN_LED_LDO_GTI9060_R0_1	68
+#define EN_GPS_GTI060_R0_1		86
+#define VOL_DOWN_GTI9060_R0_1		92
+#define TSP_LDO_ON_GTI9060_R0_1	94
+#define JACK_NINT_GTI9060_R0_1		95
+#define GPS_ON_OFF_GTI9060_R0_1	96
+#define BT_HOST_WAKE_GTI9060_R0_1	97
+#define LCD_RESX_GTI9060_R0_1		139
+#define CAM_FLASH_EN_GTI9060_R0_1	140
+#define CAM_FLASH_MODE_GTI9060_R0_1	141
+#define CAM_5M_STDBY_GTI9060_R0_1	142
+#define SUBPMU_SCL_GTI9060_R0_1	143
+#define SUBPMU_SDA_GTI9060_R0_1	144
+#define PS_VOUT_GTI9060_R0_1		146
+#define AGC_I2C_SCL_GTI9060_R0_1	147
+#define AGC_I2C_SDA_GTI9060_R0_1	148
+#define CAM_5M_RESET_GTI9060_R0_1	149
+#define LCD_ID2_GTI9060_R0_1		197
+#define BT_WAKE_GTI9060_R0_1		199
+#define LCD_ID1_GTI9060_R0_1		207
+#define BT_RST_N_GTI9060_R0_1		209
+#define WLAN_RST_N_GTI9060_R0_1	215
+#define WL_HOST_WAKE_GTI9060_R0_1	216
+#define T_FLASH_DETECT_GTI9060_R0_1	217
+#define TSP_INT_GTI9060_R0_1		218
+#define LCD_PWR_EN_GTI9060_R0_1	219
+#define LCD_CLK_GTI9060_R0_1		220
+#define LCD_BL_CTRL_GTI9060_R0_1	221
+#define BT_VREG_EN_GTI9060_R0_1	222
+#define LCD_CSX_GTI9060_R0_1		223
+#define LCD_SDI_GTI9060_R0_1		224
+#define LCD_SDO_GTI9060_R0_1		225
+#define SENSOR_INT_GTI9060_R0_1	226
+#define TSP_SDA_GTI9060_R0_1		229
+#define TSP_SCL_GTI9060_R0_1		230
+
+/* GPIO for Janice V0.0 boards */
+#define MEM_LDO_EN_JANICE_R0_0	6
+#define SENSOR_SDA_JANICE_R0_0	10
+#define SENSOR_SCL_JANICE_R0_0	11
+#define MUS_SCL_R0_0			16
+#define MUS_SDA_R0_0			17
+#define GPS_RST_N_JANICE_R0_0		21
+#define NFC_FIRM_JANICE_R0_0		31
+#define NFC_IRQ_JANICE_R0_0		32
+#define VT_CAM_STBY_JANICE_R0_0	64
+#define RST_VT_CAM_JANICE_R0_0	65
+#define VOL_UP_JANICE_R0_0		67
+#define EN_LED_LDO_JANICE_R0_0	68
+#define EN_GPS_JANICE_R0_0		86
+#define NFC_EN_JANICE_R0_0		88
+#define TSP_LDO_ON2_JANICE_R0_0	89
+#define HOME_KEY_JANICE_R0_0		91
+#define VOL_DOWN_JANICE_R0_0		92
+#define OLED_DET_BB_JANICE_R0_0	93
+#define TSP_LDO_ON1_JANICE_R0_0	94
+#define JACK_NINT_JANICE_R0_0		95
+#define GPS_ON_OFF_JANICE_R0_0	96
+#define BT_HOST_WAKE_JANICE_R0_0	97
+#define LCD_RESX_JANICE_R0_0		139
+#define CAM_FLASH_EN_JANICE_R0_0	140
+#define CAM_FLASH_MODE_JANICE_R0_0	141
+#define CAM_5M_STDBY_JANICE_R0_0	142
+#define SUBPMU_SCL_JANICE_R0_0	143
+#define SUBPMU_SDA_JANICE_R0_0	144
+#define SUBMPU_PWRON_JANICE_R0_0	145
+#define PS_VOUT_JANICE_R0_0		146
+#define AGC_I2C_SCL_JANICE_R0_0	147
+#define AGC_I2C_SDA_JANICE_R0_0	148
+#define RST_5M_CAM_JANICE_R0_0	149
+#define NFC_SCL_JANICE_R0_0		151
+#define NFC_SDA_JANICE_R0_0		152
+#define MOT_HEN_JANICE_R0_0		194
+#define MOT_LEN_JANICE_R0_0		195
+#define TOUCHKEY_SCL_JANICE_R0_0	196
+#define TOUCHKEY_SDA_JANICE_R0_0	197
+#define TOUCHKEY_INT_JANICE_R0_0	198
+#define BT_WAKE_JANICE_R0_0		199
+#define MOT_SCL_JANICE_R0_0		201
+#define MOT_SDA_JANICE_R0_0		202
+#define COM_RST_JANICE_R0_0		204
+#define TSP_RST_JANICE_R0_0		205
+#define TSP_TEST_JANICE_R0_0		206
+#define BT_RST_N_JANICE_R0_0		209
+#define WLAN_RST_N_JANICE_R0_0	215
+#define WL_HOST_WAKE_JANICE_R0_0	216
+#define T_FLASH_DETECT_JANICE_R0_0	217
+#define TSP_INT_JANICE_R0_0		218
+#define LCD_PWR_EN_JANICE_R0_0	219
+#define LCD_CLK_JANICE_R0_0		220
+#define BT_VREG_EN_JANICE_R0_0	222
+#define LCD_CSX_JANICE_R0_0		223
+#define LCD_SDI_JANICE_R0_0		224
+#define SENSOR_INT_JANICE_R0_0		226
+#define MOT_PWM_JANICE_R0_0		228
+#define TSP_SDA_JANICE_R0_0		229
+#define TSP_SCL_JANICE_R0_0		230
+
+/* GPIO for Janice V0.2 boards */
+
+#define SMD_ON_JANICE_R0_2		203
+#define COMPASS_RST_JANICE_R0_2	204
+#define SPK_AMP_CTRL_JANICE_R0_2	205
+
+
+/* GPIO for Gavini V0.0 boards */
+#define MEM_LDO_EN_GAVINI_R0_0	6
+#define SENSOR_SDA_GAVINI_R0_0	10
+#define SENSOR_SCL_GAVINI_R0_0	11
+
+#define AGC_I2C_SDA_GAVINI_R0_0_00C	10
+#define AGC_I2C_SCL_GAVINI_R0_0_00C	11
+
+#define GPS_RST_N_GAVINI_R0_0		21
+#define LCD_BL_CTRL_GAVINI_R0_0	31
+#define PRJ_ON_HOT_KEY_GAVINI_R0_0	32
+#define VT_CAM_STBY_GAVINI_R0_0	64
+#define RST_VT_CAM_GAVINI_R0_0	65
+#define VOL_UP_GAVINI_R0_0		67
+#define EN_LED_LDO_GAVINI_R0_0	68
+#define EN_GPS_GAVINI_R0_0		86
+#define PARKZ_GAVINI_R0_0		87
+#define MP_ON_GAVINI_R0_0		88
+#define PRJ_EN_GAVINI_R0_0		89
+#define HOME_KEY_GAVINI_R0_0		91
+#define VOL_DOWN_GAVINI_R0_0		92
+#define OLED_DET_BB_GAVINI_R0_0	93
+#define TSP_LDO_ON_GAVINI_R0_0	94
+#define JACK_NINT_GAVINI_R0_0		95
+#define GPS_ON_OFF_GAVINI_R0_0	96
+#define BT_HOST_WAKE_GAVINI_R0_0	97
+#define LCD_RESX_GAVINI_R0_0		139
+#define CAM_FLASH_EN_GAVINI_R0_0	140
+#define CAM_FLASH_MODE_GAVINI_R0_0	141
+#define CAM_5M_STDBY_GAVINI_R0_0	142
+#define SUBPMU_SCL_GAVINI_R0_0	143
+#define SUBPMU_SDA_GAVINI_R0_0	144
+#define SUBMPU_PWRON_GAVINI_R0_0	145
+#define PS_VOUT_GAVINI_R0_0		146
+#define AGC_I2C_SCL_GAVINI_R0_0	147
+#define AGC_I2C_SDA_GAVINI_R0_0	148
+
+#define SENSOR_SCL_GAVINI_R0_0_00C	147
+#define SENSOR_SDA_GAVINI_R0_0_00C	148
+
+#define RST_5M_CAM_GAVINI_R0_0	149
+#define NFC_SCL_GAVINI_R0_0		151
+#define NFC_SDA_GAVINI_R0_0		152
+#define TXS0206_EN_GAVINI_R0_0	193
+#define MOT_HEN_GAVINI_R0_0		194
+#define MOT_LEN_GAVINI_R0_0		195
+#define MPR_SCL_GAVINI_R0_0		196
+#define MPR_SDA_GAVINI_R0_0		197
+#define PROJECTOR_INTZ_GAVINI_R0_0	198
+#define BT_WAKE_GAVINI_R0_0		199
+#define MOT_SCL_GAVINI_R0_0		201
+#define MOT_SDA_GAVINI_R0_0		202
+#define MOTDRV_IN1_GAVINI_R0_0	203
+#define MOTDRV_IN2_GAVINI_R0_0	204
+#define MOTDRV_IN3_GAVINI_R0_0	205
+#define MOTDRV_IN4_GAVINI_R0_0	206
+#define BT_RST_N_GAVINI_R0_0		209
+#define WLAN_RST_N_GAVINI_R0_0	215
+#define WL_HOST_WAKE_GAVINI_R0_0	216
+#define T_FLASH_DETECT_GAVINI_R0_0	217
+#define TSP_INT_GAVINI_R0_0		218
+#define LCD_PWR_EN_GAVINI_R0_0	219
+#define LCD_CLK_GAVINI_R0_0		224
+#define BT_VREG_EN_GAVINI_R0_0	222
+#define LCD_CSX_GAVINI_R0_0		223
+#define LCD_SDI_GAVINI_R0_0		220
+#define SENSOR_INT_GAVINI_R0_0	226
+#define MOT_PWM_GAVINI_R0_0		228
+#define TSP_SDA_GAVINI_R0_0		229
+#define TSP_SCL_GAVINI_R0_0		230
+
+/* GPIO for Gavini V0.0.B boards */
+#define SMD_ON_GAVINI_R0_0_B		203
+#define COMPASS_RST_GAVINI_R0_0_B	204
+#define MOTDRV_IN1_GAVINI_R0_0_B	207
+#define MOTDRV_IN2_GAVINI_R0_0_B	221
+#define MOTDRV_IN3_GAVINI_R0_0_B	205
+#define MOTDRV_IN4_GAVINI_R0_0_B	206
+
+/* GPIO for Gavini V0.1 boards */
+#define PRJ_LED_EN_GAVINI_R0_1		19
+
+/* GPIO for Codina V0.0 boards */
+#define SENSOR_SDA_CODINA_R0_0	10
+#define SENSOR_SCL_CODINA_R0_0	11
+#define GPS_RST_N_CODINA_R0_0		21
+#define NFC_FIRM_CODINA_R0_0		31
+#define NFC_IRQ_CODINA_R0_0		32
+#define VT_CAM_STBY_CODINA_R0_0		64
+#define RST_VT_CAM_CODINA_R0_0		65
+#define VOL_UP_CODINA_R0_0		67
+#define LCD_BL_CTRL_CODINA_R0_0		68
+#define TXS0206_EN_CODINA_R0_0		87
+#define NFC_EN_CODINA_R0_0		88
+#define HOME_KEY_CODINA_R0_0		91
+#define VOL_DOWN_CODINA_R0_0		92
+#define LCD_DETECT_CODINA_R0_0		93
+#define TSP_LDO_ON1_CODINA_R0_0		94
+#define JACK_NINT_CODINA_R0_0		95
+#define GPS_ON_OFF_CODINA_R0_0		96
+#define BT_HOST_WAKE_CODINA_R0_0	97
+#define LCD_RESX_CODINA_R0_0		139
+#define CAM_FLASH_EN_CODINA_R0_0	140
+#define CAM_FLASH_MODE_CODINA_R0_0	141
+#define CAM_5M_STDBY_CODINA_R0_0	142
+#define SUBPMU_SCL_CODINA_R0_0		143
+#define SUBPMU_SDA_CODINA_R0_0		144
+#define SUBMPU_PWRON_CODINA_R0_0	145
+#define PS_INT_CODINA_R0_0		146
+#define AGC_I2C_SCL_CODINA_R0_0		147
+#define AGC_I2C_SDA_CODINA_R0_0		148
+#define RST_5M_CAM_CODINA_R0_0		149
+#define NFC_SCL_CODINA_R0_0		151
+#define NFC_SDA_CODINA_R0_0		152
+#define KEY_LED_EN_CODINA_R0_0		194
+#define MOT_EN_CODINA_R0_0		195
+#define BT_WAKE_CODINA_R0_0		199
+#define LCD_CSX_CODINA_R0_0		201
+#define SMD_ON_CODINA_R0_2		203
+#define BT_RST_N_CODINA_R0_0		209
+#define WLAN_RST_N_CODINA_R0_0		215
+#define WL_HOST_WAKE_CODINA_R0_0	216
+#define T_FLASH_DETECT_CODINA_R0_0	217
+#define TSP_INT_CODINA_R0_0		218
+#define LCD_PWR_EN_CODINA_R0_0		219
+#define LCD_CLK_CODINA_R0_0		220
+#define BT_VREG_EN_CODINA_R0_0		222
+#define MEM_LDO_EN_CODINA_R0_0		223
+#define LCD_SDI_CODINA_R0_0		224
+#define LCD_SDO_CODINA_R0_0		225
+#define VGA_CAM_ID_R0_0			226
+#define TSP_SDA_CODINA_R0_0		229
+#define TSP_SCL_CODINA_R0_0		230
+
+/* GPIO for Codina V0.2 boards */
+#define GPS_ON_OFF_CODINA_R0_2	86
+
+
+/*#define XSHUTDOWN_SECONDARY_SENSOR	VT_CAM_STBY_GTI9060_R0_1 */
+/*#define XSHUTDOWN_PRIMARY_SENSOR	CAM_5M_STDBY_GTI9060_R0_1 */
+#define RESET_PRIMARY_SENSOR		CAM_5M_RESET_GTI9060_R0_1
+#define RESET_SECONDARY_SENSOR		VT_CAM_RST_GTI9060_R0_1
+
+
+#ifdef CONFIG_SAMSUNG_LOG_BUF
+
+#define LOG_IRQ_BUF_SIZE		(32 * 1024) /* reserve 32Kib for irq log */
+#define LOG_SCHED_BUF_SIZE		(32 * 1024) /* reserve 32KiB for scheduler log */
+#define LOG_SHRM_PRCMU_BUF_SIZE		(200 * 1024) /* reserve 200KiB for shrm/prcmu log */
+#define	LOG_BUF_MAGIC_CODE_SIZE		sizeof(unsigned int)
+#define	LOG_BUF_INDEX_SIZE		8
+#define LOGGING_RAMBUF_SIZE		((1024 * 1024) - LOG_SHRM_PRCMU_BUF_SIZE - LOG_SCHED_BUF_SIZE - LOG_IRQ_BUF_SIZE)
+#define LOG_IRQ_BUF_START		LOGGING_RAMBUF_SIZE
+#define LOG_SCHED_BUF_START		(LOG_IRQ_BUF_START + LOG_IRQ_BUF_SIZE)
+#define LOG_SHRM_PRCMU_BUF_START	(LOG_SCHED_BUF_START + LOG_SCHED_BUF_SIZE)
+#define LOGGING_RAM_MASK		1
+
+					/* 1048567 */
+#define KERNEL_LOGGING_INDEX_LIMIT (LOGGING_RAMBUF_SIZE-LOG_BUF_INDEX_SIZE-1)
+#define LOGGING_RAMBUF_DATA_SIZE ((LOGGING_RAMBUF_SIZE)-LOG_BUF_INDEX_SIZE)
+#endif
+
+
+/*
+*	struct gpio_debounce_t
+*	gpio		- GPIO to be debounced
+*	irq_disabled	- GPIO is associated with IRQ that is disabled
+*	wq		- Work queue to schedule work to if required
+*	pWork		- Work to be scheduled once debounced completed
+*	pFn		- Function to do action once debounce completed
+*	debounce_work	- Debounce work item
+*/
+struct gpio_debounce_t {
+	int gpio;
+	bool irq_disabled;
+	unsigned long lockbits;
+	struct workqueue_struct *wq;
+	struct work_struct *pWork;
+	void (*pFn)(void);
+	struct work_struct debounce_work;
+};
+
+extern unsigned int system_rev;
+extern struct device *gps_dev;
+extern struct class *sec_class;
+
+void keswick_gpio_wq_debounce(struct work_struct *work);
+
+void __init ssg_pins_init(void);
+void godin_cam_init(void);
+
+
+/* used for BCM WiFi */
+void u8500_sdio_detect_card(void);
+
+
+#endif /* BOARD_SEC_U8500_H */

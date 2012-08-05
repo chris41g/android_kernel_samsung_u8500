@@ -1,0 +1,402 @@
+if ARCH_U8500
+
+# Old bootloaders pass the Nomadik machine type, and the MACH_ option named
+# after the machine type must be present and selected for machine_is_*() to
+# work
+config MACH_NOMADIK
+	bool
+
+config MACH_HREFV60
+	bool
+choice
+	prompt "Ux500 platform"
+	default UX500_SOC_DB8500
+
+config UX500_SOC_DB8500
+	select CPU_V7
+	select ARM_GIC
+	select SMP
+	select ARM_ERRATA_753970
+	select ARM_ERRATA_754322
+	select SYS_SOC
+	bool "U8500"
+
+config UX500_SOC_DB5500
+	select CPU_V7
+	select ARM_GIC
+	bool "U5500"
+
+endchoice
+
+config UX500_SVP
+	bool
+
+if UX500_SOC_DB8500
+
+menu "U8500 Machines"
+
+config MACH_SVP8500V1
+	bool "U8500 Simulator v1 (SVP8500v1)"
+	select UX500_SVP
+	help
+	  Support Simulation for u8500 platform (v1)
+
+config MACH_SVP8500V2
+	bool "U8500 Simulator v2 (SVP8500v2)"
+	select UX500_SVP
+	help
+	  Supports Simulation for u8500 platform (v2)
+
+config MACH_U8500
+	bool "U8500 MOP500/HREF/custom HW"
+	select MACH_NOMADIK
+	select MACH_HREFV60
+	help
+	  Supports the generic U8500 board type used for MOP500/HREF and some
+	  custom boards.  Boards using the generic type cannot be built
+	  together; select the specific board in the "U8500 HW" option.
+
+# If you are porting onto a new board, you really should be using a new machine
+# type and adding an entry into this list, not the "U8500 HW" list below.
+
+config MACH_SAMSUNG_U8500
+	bool "U8500 based Samsung HW"
+	help
+	  Supports Samsung boards based on U8500 chipset.
+	  Select specific board below in "Samsung U8500 HW" option.
+
+endmenu
+
+if MACH_U8500
+
+choice
+	prompt "U8500 HW"
+	default MACH_U8500_MOP
+
+config MACH_U8500_MOP
+	bool "MOP500/HREF"
+	help
+	  Supports MOP500/HREF development boards.
+
+config MACH_U8500_PDP
+	bool "PDP"
+	help
+	  Supports PDP target board
+
+endchoice
+
+endif
+
+if MACH_SAMSUNG_U8500
+
+menu "Samsung U8500 HW"
+
+config MACH_GAVINI
+	bool "Gavini"
+	help
+	  Supports Gavini boards
+	  
+config MACH_JANICE
+	bool "Janice"
+	help
+	  Supports Janice boards
+
+config MACH_JANICE_KOR
+	bool "Janice_kor"
+	help
+	  Supports Janice_kor boards
+
+config MACH_JANICE_CHN
+	bool "Janice_chn"
+	help
+	  Supports Chinese features of Janice_chn boards. This features
+	  will be used in Power off alarm and OVP UI concept for Chinese
+	  models.
+
+config MACH_CODINA
+	bool "Codina"
+	help
+	  Supports Codina boards
+
+config MACH_GODIN
+	bool "Godin"
+	help
+	  Supports Godin(I9060) board and variants
+
+config SAMSUNG_PRODUCT_SHIP
+        bool "set up for product shippling"
+        default n
+
+config SAMSUNG_KERNEL_DEBUG
+        bool "Samsung Kernel Debuging Code"
+        default n
+
+config SAMSUNG_KERNEL_DEBUG_USER
+	bool "Forced crash by key combination"
+	default n
+
+config SAMSUNG_USE_GETLOG
+	bool "Samsung getLog Debuging Feature"
+	default n
+	help
+		Add a MARK string to the kernel log message indicating
+		starting addresses of 'FrameBuffer / printk Log buffer /
+		Platform log buffer. This feature is used to extract
+		debuggin information from log messages.
+
+config SAMSUNG_ADD_GAFORENSICINFO
+	bool "Samsung GAF Debuging Feature"
+	default n
+	help
+		Add additional information to the ram dump. This information
+		will be analized in GAF Tool.
+
+config SAMSUNG_PASS_PLATFORM_LOG_TO_KERNEL
+	bool "Samsung Pass Platform Log to Kernel"
+	default n
+	help
+		This feature make a log message which is started with !@ is
+		displaye through printk function.
+
+config SAMSUNG_USE_SEC_LOG_BUF
+	bool "Samsung Use SEC_LOG_BUF"
+	default n
+	help
+		This feature stores all serial log messages into the
+		SEC_LOG_BUF area.
+
+config SAMSUNG_PANIC_DISPLAY_DEVICES
+	bool "Samsung Display device registers after Kernel Panic"
+	default n
+	depends on SAMSUNG_KERNEL_DEBUG
+	help
+		This will enable communication with devices so that their
+		status maybe displayed.
+
+config SAMSUNG_PANIC_DISPLAY_PMIC
+	bool "Samsung Display PMIC registers after Kernel Panic"
+	default n
+	depends on SAMSUNG_PANIC_DISPLAY_DEVICES
+	help
+		This will dump all the PMIC (Power Management IC) registers,
+		this maybe to log buf or direct to serial.
+
+config SAMSUNG_PANIC_DISPLAY_I2C_PERIPHS
+	bool "Samsung Display I2C Peripheral registers after Kernel Panic"
+	default n
+	depends on SAMSUNG_PANIC_DISPLAY_DEVICES
+	help
+		This will dump I2C connected peripherals that are powered,
+		this maybe to log buf or direct to serial.
+
+endmenu
+
+endif
+
+endif
+
+if UX500_SOC_DB5500
+
+menu "U5500 Machines"
+
+config MACH_SVP5500
+	bool "U5500 Simulator (SVP5500)"
+	select UX500_SVP
+	help
+	  Support for the U5500 Simulator
+
+config MACH_B5500
+	bool "U5500 Big Board (B5500)"
+	help
+	  Support for the U5500 Big Board
+endmenu
+
+endif
+
+config CONNECTOR_SAMSUNG_3PI
+	tristate "3 Pole Interface connector support"
+	default n
+	help
+		Say Y here if you want to use a 3PI headset connector.
+
+choice
+	prompt "Ux500 UIB Keylayout"
+	default KEYLAYOUT_LAYOUT1
+
+config KEYLAYOUT_LAYOUT1
+	bool "UIB Keylayout 1; for generic users"
+	help
+	  Supported keylayout for some numerics, power/call buttons,
+	  volume control etc
+
+config KEYLAYOUT_LAYOUT2
+	bool "UIB Keylayout 2; for connectivity users"
+	help
+	  Supports keylayout numerics 0-9, left/right/up/down/back/
+	  enter keys and special character "."(dot)
+
+endchoice
+
+choice
+	prompt "Ux500 sched_clock timer"
+	default UX500_MTU_TIMER
+
+config U8500_PRCMU_TIMER
+	bool "PRCMU Timer sched_clock"
+	depends on (UX500_SOC_DB8500 && !HAS_MTU)
+	help
+	  Add support for an always on sched_clock, required for
+	  proper cpuidle and suspend.
+
+config UX500_MTU_TIMER
+	bool "Multi Timer Unit sched_clock"
+	help
+	  Add sched_clock support for the Multi Timer Unit.
+	  Since mtu isn't always on cpuidle will not
+	  work with this clock.
+
+endchoice
+
+config U8500_PRCMU
+	bool "U8500 PRCMU support"
+	depends on UX500_SOC_DB8500
+	default n
+	help
+	  Add support for PRCMU for U8500
+
+config U5500_PRCMU
+	bool "U5500 PRCMU support"
+	depends on UX500_SOC_DB5500
+	default y
+	help
+	  Add support for PRCMU for U5500
+
+config UX500_PRCMU_QOS_POWER
+	bool "UX500 PRCMU power QoS support"
+	depends on (U5500_PRCMU || U8500_PRCMU)
+	default y
+	help
+	  Add support for PRCMU power Quality of Service
+
+config UX500_PRCMU_DEBUG
+	bool "PRCMU debug"
+	depends on ((U5500_PRCMU || U8500_PRCMU) && DEBUG_FS)
+	default n
+	help
+	  Add support for PRCMU debug
+
+config U8500_REGULATOR_DEBUG
+	bool "Regulator debug support"
+	depends on REGULATOR_VIRTUAL_CONSUMER
+	default n
+	help
+	  Add support for U8500 regulator debug
+
+config U5500_PWM
+	bool "PWM support"
+	default y
+	depends on UX500_SOC_DB5500
+	help
+	  Add support for PWM for U5500
+
+config MOP500_SDI
+	bool
+	default y
+	depends on ((MACH_U8500_MOP || MACH_U8500_PDP) && MMC_ARMMMCI)
+
+config ARCH_HAS_CPU_IDLE_WAIT
+	def_bool y
+
+config UX500_DEBUG_UART
+	int "Ux500 UART to use for low-level debug"
+	default 2 if UX500_SOC_DB8500
+	default 0 if UX500_SOC_DB5500
+	help
+	  Choose the UART on which kernel low-level debug messages should be
+	  output.
+
+
+config SENSORS1P_MOP
+	tristate "HAL and Proximity sensors support"
+	depends on REGULATOR && (GPIO_STMPE2401 || GPIO_TC35892)
+	default y
+	help
+	  Add support for Osram's SFH7741 Proximity Sensor and Samsumg
+	  HED54XXU11 HAL Switch
+
+config U5500_MODEM_IRQ
+	bool "Modem IRQ support"
+	depends on UX500_SOC_DB5500
+	default y
+	help
+	  Add support for handling IRQ:s from modem side
+
+config MOP500_NUIB
+	bool "MOP500 NUIB"
+	depends on MACH_U8500_MOP
+	default y
+	help
+	  Add support for the platform data of synaptics rmi4 driver
+
+config TEE_UX500
+	bool "Trusted Execution Environment (TEE) ux500 hardware support"
+	depends on TEE_SUPPORT
+	default y
+	help
+	  Adds TEE hardware support for ux500 platforms.
+
+config TEE_SVP
+	bool "Trusted Execution Environment (TEE) ux500 SVP support"
+	depends on TEE_SUPPORT && UX500_SVP
+	default y
+	help
+	  Adds TEE support for SVP in ux500 platforms.
+
+config DB8500_MLOADER
+	bool "Modem firmware upload/download support"
+	depends on UX500_SOC_DB8500
+	select DBX500_MLOADER
+	default n
+	help
+	  Adds Modem firmware upload/download support to DB8500.
+
+config U5500_MLOADER
+	bool "mLoader, mem config from kernel boot args exported to sysfs"
+	depends on UX500_SOC_DB5500
+	help
+	  Link between boot args and user space program that loads the modem ELF.
+	  This is used to expose the modem parameters using sysfs interface.
+
+config UX500_DEBUG_HWREG
+	bool "Debug hardware registers from userspace"
+	depends on (DEBUG_FS && UX500_SOC_DB8500)
+	help
+	  Adds various debug files to access registers.
+	  This should never ever be used for anything else than debugging.
+
+config UX500_DEBUG_NO_LAUTERBACH
+       bool "Disable clocks needed for Lauterbach debugging"
+       help
+	  Disable clocks needed for Lauterbach debugging at boot.
+	  If yes, you will reduce the power consumption.
+
+config UX500_L2X0_PREFETCH_CTRL
+	bool "PL310 prefetch control"
+	depends on (UX500_SOC_DB8500 || UX500_SOC_DB5500) && \
+			(TEE_UX500 && CACHE_L2X0)
+	default y
+	help
+	  Adds interface to control instruction and data prefetch.
+	  Communication with Trustzone is done through TEE driver.
+
+config UX500_DB_DUMP
+	bool "DBx500 register dump on crash"
+	depends on (UX500_SOC_DB8500 || UX500_SOC_DB5500)
+	default y
+	help
+	  Reads specific DBx500 register in case of kernel crash
+	  and saves it.
+
+source "arch/arm/mach-ux500/Kconfig-arch"
+source "arch/arm/mach-ux500/pm/Kconfig"
+endif

@@ -1,0 +1,121 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN"
+	"http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd" []>
+
+<book id="DMA">
+ <bookinfo>
+  <title>DMA40</title>
+
+  <authorgroup>
+   <author>
+    <firstname>Per</firstname>
+    <surname>Friden</surname>
+    <affiliation>
+     <address>
+      <email>per.friden@stericsson.com</email>
+     </address>
+    </affiliation>
+   </author>
+   <author>
+    <firstname>Jonas</firstname>
+    <surname>Aaberg</surname>
+    <affiliation>
+     <address>
+      <email>jonas.aberg@stericsson.com</email>
+     </address>
+    </affiliation>
+   </author>
+   </authorgroup>
+
+  <copyright>
+   <year>2009-2010</year>
+   <holder>ST-Ericsson</holder>
+  </copyright>
+
+  <subjectset>
+    <subject>
+      <subjectterm>Linux standard functions</subjectterm>
+    </subject>
+  </subjectset>
+
+  <legalnotice>
+   <!-- Do NOT remove the legal notice below -->
+
+  <para>
+     This documentation is free software; you can redistribute
+     it and/or modify it under the terms of the GNU General Public
+     License as published by the Free Software Foundation; either
+     version 2 of the License, or (at your option) any later
+     version.
+   </para>
+
+   <para>
+     This program is distributed in the hope that it will be
+     useful, but WITHOUT ANY WARRANTY; without even the implied
+     warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+     See the GNU General Public License for more details.
+   </para>
+
+   <para>
+     You should have received a copy of the GNU General Public
+     License along with this program; if not, write to the Free
+     Software Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+     MA 02111-1307 USA
+   </para>
+
+   <para>
+     For more details see the file COPYING in the source
+     distribution of Linux.
+   </para>
+  </legalnotice>
+ </bookinfo>
+
+<toc></toc>
+  <chapter id="intro">
+    <title>Introduction</title>
+    <para>
+	This Documentation describes the API's provided by the DMA controller Driver.
+    </para>
+  </chapter>
+
+  <chapter id="bugs">
+     <title>Known Bugs And Assumptions</title>
+  <para>
+     <variablelist>
+     <varlistentry>
+       <term>None</term>
+       <listitem>
+         <para>
+		None.
+           </para>
+       </listitem>
+     </varlistentry>
+     </variablelist>
+  </para>
+  </chapter>
+
+  <chapter id="pubfunctions">
+     <title>Public Functions Provided</title>
+     <para>
+	This Section lists the API's provided by the DMA controller driver to client drivers.
+     </para>
+!Earch/arm/plat-nomadik/include/plat/ste_dma40.h
+  </chapter>
+
+  <chapter id="private">
+    <title>Private Functions</title>
+    <para>
+	This Section lists the functions used internally  by the DMA controller driver.
+    </para>
+!Idrivers/dma/ste_dma40.c
+  </chapter>
+
+  <chapter id="Other">
+    <title>Other Data Structures</title>
+    <para>
+	This Section lists some of the Data structure used by the DMA driver.
+    </para>
+!Iarch/arm/plat-nomadik/include/plat/ste_dma40.h
+!Idrivers/dma/ste_dma40_ll.h
+  </chapter>
+</book>

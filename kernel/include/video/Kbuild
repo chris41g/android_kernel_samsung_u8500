@@ -1,0 +1,4 @@
+unifdef-y += sisfb.h uvesafb.h
+unifdef-y += edid.h
+unifdef-y += b2r2_blt.h
+unifdef-y += mcde_fb.h

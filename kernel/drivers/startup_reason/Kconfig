@@ -1,0 +1,13 @@
+menuconfig STARTUP_REASON 
+	tristate "Startup reason"
+	help
+	  Say Y here to enable startup class support. 
+
+if STARTUP_REASON
+
+config AB8500_STARTUP_REASON
+	bool "Enables startup reason support for ab8500 chipset "
+	help
+	  Enables startup reason support for ab8500 chipset
+
+endif # STARTUP_REASON 

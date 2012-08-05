@@ -1,0 +1,28 @@
+#
+# HSI HW kernel configuration
+#
+#
+
+config HSI
+	boolean "HSI support"
+	depends on ARCH_U8500
+	default n
+
+config U8500_HSI
+	tristate "STN8500 HSI hardware driver"
+	depends on ARCH_U8500 && HSI
+	default y
+	---help---
+	  If you say Y here, you will enable the STN8500 HSI (Rx and Tx) hardware driver.
+
+	  If unsure, say N.
+
+config HSIDEV
+	tristate "HSI loopback protocol driver"
+	depends on U8500_HSI
+	default n
+	---help---
+	  If you say Y here, you will enable the test protocol driver used for testing HSI Rx and Tx controllers
+
+	  If unsure, say N.
+

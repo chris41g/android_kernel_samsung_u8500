@@ -1,0 +1,41 @@
+#
+# HSI HW kernel configuration
+#
+if !HSI
+config U8500_HSI_LEGACY
+	tristate "Legacy U8500 HSI hardware driver"
+	depends on ARCH_U8500
+	default n
+	---help---
+	  If you say Y here, you will enable the U8500 HSI (Rx and Tx) hardware driver.
+
+	  If unsure, say N.
+
+config U8500_HSI_TEST_PROTOCOL_DRIVER
+	tristate "U8500 HSI test protocol driver"
+	depends on U8500_HSI_LEGACY
+	default n
+	---help---
+	  If you say Y here, you will enable the test protocol driver used for testing HSI Rx and Tx controllers
+
+	  If unsure, say N.
+
+choice
+        prompt "HSI transfer mode"
+	depends on U8500_HSI_LEGACY
+        default U8500_HSI_INTERRUPT_MODE
+
+config U8500_HSI_INTERRUPT_MODE
+	bool "Interrupt mode transfer"
+
+config U8500_HSI_DMA_MODE
+	bool "DMA mode transfer"
+
+endchoice
+
+config U8500_HSI_TRANSFER_MODE
+       hex
+       default 0x0 if !U8500_HSI
+       default 0x1 if U8500_HSI_INTERRUPT_MODE
+       default 0x2 if U8500_HSI_DMA_MODE
+endif

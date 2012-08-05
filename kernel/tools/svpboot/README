@@ -1,0 +1,18 @@
+BUILDING SVPBOOT:
+
+  $ CROSS_COMPILE=<your-arm-cc> make -C tools/svpboot/
+
+RUNNING SVP WITH SVPBOOT:
+
+  Use the svpboot ELF binaries appropriate for your SVP as the "-arm_lib"
+  argument, and use "-dram_img" to load the Image of the kernel to 0x8000.
+
+  For example, on SVP5500:
+
+  $ tlm_run.exe -arm_lib tools/svpboot/svp5500 -dram_img 0x8000 \
+    arch/arm/boot/Image 0x3000000 initrd -open_mcde -open_telnet
+
+  For example, on SVP8500v1:
+
+  $ tlm_run.exe -arm_lib tools/svpboot/svp8500v1 -dram_img 0x8000 \
+    arch/arm/boot/Image 0x800000 initrd -open_mcde -open_telnet

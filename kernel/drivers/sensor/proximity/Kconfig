@@ -1,0 +1,46 @@
+#
+# MAGNETIC Sensor Configuration
+#
+
+
+
+config PROXIMITY
+	bool "PROXIMITY Sensor"
+	default n
+	help
+	This option enables proximity sensors
+
+config PROXIMITY_CM3607
+	depends on PROXIMITY
+	tristate "Proximity sensor driver using CM3607"
+	default n
+	help
+	  This option enables proximity sensor using cm3607.
+
+config PROXIMITY_GP2A
+	depends on PROXIMITY
+	tristate "Proximity sensor driver using GP2A"
+	default n
+	help
+	  This option enables proximity sensor using GP2AP002S00F.
+
+config PROXIMITY_GP2A030
+	depends on PROXIMITY
+	tristate "Proximity sensor driver using GP2A"
+	default n
+	help
+	  This option enables proximity sensor using GP2AP030S00F.
+
+config GP2A_MODE_B
+	depends on PROXIMITY
+	tristate "Proximity sensor driver using GP2A"
+	default n
+	help
+	  This option enables proximity sensor using GP2AP002S00F.
+
+config PROXIMITY_TMD2672
+	depends on PROXIMITY
+	tristate "Proximity sensor driver using TMD2672"
+	default n
+	help
+	  This option enables proximity sensor using TMD2672_P4.

@@ -1,0 +1,9 @@
+#ifndef __ASM_ARCH_TIMEX_H
+#define __ASM_ARCH_TIMEX_H
+
+#define CLOCK_TICK_RATE		110000000
+#ifndef CONFIG_UX500_SOC_DB5500
+#define ARCH_HAS_READ_CURRENT_TIMER
+#endif
+
+#endif

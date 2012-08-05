@@ -1,0 +1,28 @@
+#
+# HSI Protocol kernel configuration
+#
+
+config ISA_HSI_MODEM
+	tristate "HSI Protocol driver"
+	depends on U8500_HSI_LEGACY
+	default Y
+	---help---
+	  If you say Y here, you will enable the U8500 HSI Protocol driver.
+
+	  If unsure, say N.
+
+choice
+        prompt "HSI Direction"
+        default U8500_HSI_MODEM_EXTERNAL
+
+config U8500_HSI_MODEM_EXTERNAL
+        bool "External"
+config U8500_HSI_MODEM_INTERNAL
+	bool "Internal"
+
+endchoice
+
+config U8500_HSI_MODEM_DIRECTION
+        hex
+        default 0x0 if !U8500_HSI_MODEM_EXTERNAL
+        default 0x1 if U8500_HSI_MODEM_EXTERNAL
