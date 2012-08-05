@@ -2,14 +2,14 @@ on early-init
     start ueventd
 
 on init
-    export PATH /sbin:/vendor/bin:/system/sbin:/system/bin:/system/xbin
-    export LD_LIBRARY_PATH /misc/sbin:/sbin
+    export PATH /sbin
+    export LD_LIBRARY_PATH .:/sbin
     export ANDROID_ROOT /system
     export ANDROID_DATA /data
     export EXTERNAL_STORAGE /sdcard
     export SECONDARY_STORAGE /emmc
 
-    #symlink /system/etc /etc
+    symlink /misc /etc
 
     mkdir /sdcard
     mkdir /preload
@@ -72,7 +72,7 @@ service console /system/bin/sh
 
 service recovery /sbin/recovery
 
-service adbd /sbin/adbd recovery
+service adbd /sbin/adbd.recovery recovery
 #    disabled
 
 on property:persist.service.adb.enable=1
