@@ -13,4 +13,6 @@ ko=`find modules -type f -name *.ko`;\
         for i in $ko; do mv $i initramfs/lib/modules/; done;\
 rm -rf modules
 $MAKE zImage
-cp kernel/arch/arm/boot/zImage ./
+cp kernel/arch/arm/boot/zImage ./kernel.bin
+md5sum -t kernel.bin >> kernel.bin
+mv kernel.bin kernel.bin.md5
