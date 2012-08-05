@@ -266,12 +266,12 @@ on post-fs
     chmod 0771 /data
 
 # We need to decide j4fs's partition number(mmcblk0pX)
-    insmod /lib/modules/j4fs.ko
+    insmod /lib/modules/2.6.35.7/kernel/drivers/samsung/j4fs/j4fs.ko
     mount j4fs /dev/block/mmcblk0p1 /mnt/.lfs wait
     
-    insmod /lib/modules/param.ko
+    insmod /lib/modules/2.6.35.7/kernel/drivers/samsung/param/param.ko
 
-    insmod /lib/modules/bthid.ko
+    insmod /lib/modules/2.6.35.7/kernel/drivers/bluetooth/bthid/bthid.ko
 
     # Create dump dir and collect dumps.
     # Do this before we mount cache so eventually we can use cache for
