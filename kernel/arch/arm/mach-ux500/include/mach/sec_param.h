@@ -70,7 +70,7 @@
 #define FLASH_LOCK_STATUS		FLASH_UNLOCK
 #define COMMAND_LINE_BASIC		"cachepolicy=writealloc noinitrd "\
 					"mpcore_wdt.mpcore_margin=359 root=/dev/ram0 rw rootwait " \
-					"crash_reboot=yes crash_dump=no"
+					"crash_reboot=no crash_dump=no"
 
 #define COMMAND_LINE_ROOTFS		COMMAND_LINE_BASIC" initrd=,"
 
