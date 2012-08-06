@@ -1,4 +1,5 @@
 #!/bin/bash
+export LTN_BUILD_LOCALE=y STERICCSON_WLAN_BUILT_IN=y
 MAKE='make -C kernel ARCH=arm'
 rm -rf modules
 rm -rf initramfs/lib/modules
