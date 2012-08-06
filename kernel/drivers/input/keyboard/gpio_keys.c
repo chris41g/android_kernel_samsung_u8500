@@ -35,11 +35,6 @@ struct gpio_keys_platform_data *g_pdata;
 static bool g_bVolUp;
 static bool g_bPower;
 static bool g_bHome;
-#if defined(CONFIG_MACH_GAVINI)
-static bool g_bProjector;
-extern int get_proj_status(void);
-extern int screen_direction;
-#endif
 
 extern unsigned int system_rev;
 
@@ -483,32 +478,10 @@ static void gpio_keys_report_event(struct gpio_button_data *bdata)
 	switch (button->code) {
 	case KEY_VOLUMEUP:
 		g_bVolUp = bState;
-#if defined(CONFIG_MACH_GAVINI)
-		if (get_proj_status() && state)
-			projector_motor_cw();
-#endif
 		break;
 	case KEY_HOME:
 		g_bHome = bState;
 		break;
-#if defined(CONFIG_MACH_GAVINI)
-	case KEY_F24:
-		g_bProjector = bState;
-		if (g_bProjector) {
-			if (get_proj_status()) {
-				ProjectorPowerOffSequence();
-				if (screen_direction)
-					screen_direction = 0; else screen_direction = 1;
-			}
-			else
-				ProjectorPowerOnSequence();
-		}
-		break;
-	case KEY_VOLUMEDOWN:
-		if (get_proj_status() && state)
-			projector_motor_ccw();
-		break;
-#endif
 	default:
 		break;
 	}

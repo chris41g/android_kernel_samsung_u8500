@@ -625,10 +625,6 @@ static int __devinit ab8500_temp_probe(struct platform_device *pdev)
 	if (!data)
 		return -ENOMEM;
 
-	err = setup_irqs(pdev);
-	if (err < 0)
-		goto exit;
-
 	data->gpadc = ab8500_gpadc_get();
 
 	data->hwmon_dev = hwmon_device_register(&pdev->dev);
@@ -676,6 +672,10 @@ static int __devinit ab8500_temp_probe(struct platform_device *pdev)
 		dev_err(&pdev->dev, "Create sysfs group failed (%d)\n", err);
 		goto exit_platform_data;
 	}
+
+	err = setup_irqs(pdev);
+	if (err < 0)
+		goto exit_platform_data;
 
 	return 0;
 

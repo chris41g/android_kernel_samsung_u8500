@@ -11,14 +11,23 @@
 
 #include "cpuidle.h"
 
+enum post_mortem_sleep {
+	NO_SLEEP_PROGRAMMED = 0x12345678,
+};
+
 #ifdef CONFIG_U8500_CPUIDLE_DEBUG
 void ux500_ci_dbg_init(void);
 void ux500_ci_dbg_remove(void);
+
+void ux500_ci_dbg_log_post_mortem(int target,
+				  ktime_t enter_time, ktime_t est_wake_common,
+				  ktime_t est_wake, int sleep, bool is_last);
 
 void ux500_ci_dbg_log(int ctarget, ktime_t enter_time);
 void ux500_ci_dbg_wake_latency(int ctarget, int sleep_time);
 void ux500_ci_dbg_exit_latency(int ctarget, ktime_t now, ktime_t exit,
 			       ktime_t enter, bool timed_out);
+void ux500_ci_dbg_wake_time(ktime_t time_wake);
 
 void ux500_ci_dbg_register_reason(int idx, bool power_state_req,
 				  u32 sleep_time, u32 max_depth);
@@ -38,12 +47,18 @@ static inline void ux500_ci_dbg_remove(void) { }
 
 static inline void ux500_ci_dbg_log(int ctarget,
 				    ktime_t enter_time) { }
+static inline void ux500_ci_dbg_log_post_mortem(int target,
+						ktime_t enter_time,
+						ktime_t est_wake_common,
+						ktime_t est_wake, int sleep,
+						bool is_last) { }
 
 static inline void ux500_ci_dbg_exit_latency(int ctarget,
 					     ktime_t now, ktime_t exit,
 					     ktime_t enter, bool timed_out) { }
 static inline void ux500_ci_dbg_wake_latency(int ctarget, int sleep_time) { }
 
+static inline void ux500_ci_dbg_wake_time(ktime_t time_wake) { }
 
 static inline void ux500_ci_dbg_register_reason(int idx, bool power_state_req,
 						u32 sleep_time, u32 max_depth) { }

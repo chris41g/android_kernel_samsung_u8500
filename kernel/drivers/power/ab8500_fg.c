@@ -52,8 +52,9 @@
 #define FGRES_HWREV_03			121
 #define FGRES_HWREV_03_CH		120
 #elif defined(CONFIG_MACH_CODINA)
+#define USE_COMPENSATING_VOLTAGE_SAMPLE_FOR_CHARGING
 #define FGRES				130
-#define FGRES_CH			120
+#define FGRES_CH			125
 #else
 #define FGRES				130
 #define FGRES_CH			133
@@ -1110,8 +1111,19 @@ static int ab8500_fg_volt_to_resistance(struct ab8500_fg *di, int voltage)
 	struct v_to_res *tbl;
 	int res = 0;
 
-	tbl = di->bat->bat_type[di->bat->batt_id].v_to_res_tbl,
-	tbl_size = di->bat->bat_type[di->bat->batt_id].n_v_res_tbl_elements;
+#ifdef USE_COMPENSATING_VOLTAGE_SAMPLE_FOR_CHARGING
+	if (di->flags.charging) {
+		tbl = di->bat->bat_type[di->bat->batt_id].v_to_chg_res_tbl,
+		tbl_size = di->bat->bat_type[di->bat->batt_id].
+			n_v_chg_res_tbl_elements;
+	} else {
+#endif
+		tbl = di->bat->bat_type[di->bat->batt_id].v_to_res_tbl,
+		tbl_size = di->bat->bat_type[di->bat->batt_id].
+			n_v_res_tbl_elements;
+#ifdef USE_COMPENSATING_VOLTAGE_SAMPLE_FOR_CHARGING
+	}
+#endif
 
 	for (i = 0; i < tbl_size; ++i) {
 		if (voltage > tbl[i].voltage)
@@ -1130,10 +1142,21 @@ static int ab8500_fg_volt_to_resistance(struct ab8500_fg *di, int voltage)
 		res = tbl[tbl_size-1].resistance +
 			di->bat->bat_type[di->bat->batt_id].line_impedance;
 	} else {
-		res = di->bat->bat_type[di->bat->batt_id].
-			battery_resistance +
-			di->bat->bat_type[di->bat->batt_id].
-			line_impedance;
+#ifdef USE_COMPENSATING_VOLTAGE_SAMPLE_FOR_CHARGING
+		if (di->flags.charging) {
+			res = di->bat->bat_type[di->bat->batt_id].
+				battery_resistance_for_charging +
+				di->bat->bat_type[di->bat->batt_id].
+				line_impedance;
+		} else {
+#endif
+			res = di->bat->bat_type[di->bat->batt_id].
+				battery_resistance +
+				di->bat->bat_type[di->bat->batt_id].
+				line_impedance;
+#ifdef USE_COMPENSATING_VOLTAGE_SAMPLE_FOR_CHARGING
+		}
+#endif
 	}
 
 	dev_dbg(di->dev, "[NEW BATT RES]%s Vbat: %d, Res: %d mohm",
@@ -1369,11 +1392,43 @@ static int ab8500_fg_calc_cap_charging(struct ab8500_fg *di)
 	di->bat_cap.permille =
 		ab8500_fg_convert_mah_to_permille(di, di->bat_cap.mah);
 
+#ifdef USE_COMPENSATING_VOLTAGE_SAMPLE_FOR_CHARGING
+	if (di->bat_cap.permille > 900) {
+		di->n_skip_add_sample = 4;
+	} else if (di->bat_cap.permille <= 900 &&
+		di->bat_cap.permille > 800) {
+		di->n_skip_add_sample = 4;
+	} else if (di->bat_cap.permille <= 800 &&
+		di->bat_cap.permille > 250) {
+		di->n_skip_add_sample = 7;
+	} else if (di->bat_cap.permille <= 250 &&
+		di->bat_cap.permille > 200) {
+		di->n_skip_add_sample = 5;
+	} else if (di->bat_cap.permille <= 200 &&
+		di->bat_cap.permille > 100) {
+		di->n_skip_add_sample = 3;
+	} else if (di->bat_cap.permille <= 120) {
+		di->n_skip_add_sample = 1;
+	}
+	pr_info("[CHARGING] Using every %d Vbat sample Now on %d loop\n",
+		di->n_skip_add_sample, di->skip_add_sample);
+
+	if (++di->skip_add_sample >= di->n_skip_add_sample) {
+		pr_info("[CHARGING] Adding voltage based samples to avg: %d\n",
+			di->vbat_cap.avg);
+		di->bat_cap.mah = ab8500_fg_add_cap_sample(di,
+			di->vbat_cap.avg);
+		di->skip_add_sample = 0;
+	}
+	di->bat_cap.permille =
+		ab8500_fg_convert_mah_to_permille(di, di->bat_cap.mah);
+#else
 	ab8500_fg_fill_vcap_sample(di, di->bat_cap.mah);
 
 	/* We need to update battery voltage and inst current when charging */
 	di->vbat = ab8500_comp_fg_bat_voltage(di, true);
 	di->inst_curr = ab8500_fg_inst_curr(di);
+#endif /*USE_COMPENSATING_VOLTAGE_SAMPLE_FOR_CHARGING*/
 
 	return di->bat_cap.mah;
 }
@@ -1598,7 +1653,8 @@ static void ab8500_fg_check_capacity_limits(struct ab8500_fg *di, bool init)
 		}
 	}
 
-	if (percent == 0 && di->vbat <= LOWBAT_ZERO_VOLTAGE)
+	if ((percent == 0 && di->vbat <= LOWBAT_ZERO_VOLTAGE) ||
+		(percent <= 1 && di->vbat <= LOWBAT_ZERO_VOLTAGE && !changed))
 		di->lowbat_poweroff = true;
 
 	if (di->lowbat_poweroff && di->lpm_chg_mode) {
@@ -1713,6 +1769,40 @@ static void ab8500_fg_algorithm_charging(struct ab8500_fg *di)
 		/*
 		 * Read the FG and calculate the new capacity
 		 */
+
+#ifdef USE_COMPENSATING_VOLTAGE_SAMPLE_FOR_CHARGING
+		{
+			int mah, vbat_cap;
+			vbat_cap = ab8500_fg_load_comp_volt_to_capacity(di,
+								false);
+			if (vbat_cap != -1) {
+				mah = ab8500_fg_convert_permille_to_mah(di,
+							vbat_cap);
+				ab8500_fg_add_vcap_sample(di, mah);
+				pr_info(
+				"[CHARGING]Average voltage based capacity is: "
+				"%d mah Now %d mah, [%d %%]\n",
+				di->vbat_cap.avg, mah, vbat_cap / 10);
+			} else
+				pr_info(
+				"[CHARGING]Ignoring average "
+				"voltage based capacity\n");
+		}
+#endif
+		/*
+		 * We force capacity to 100% as long as the algorithm
+		 * reports that it's full.
+		 */
+		if (di->bat_cap.mah >= di->bat_cap.max_mah_design ||
+		    (!di->flags.chg_timed_out &&
+		     (di->flags.fully_charged ||
+		      di->flags.fully_charged_1st))) {
+			di->bat_cap.mah = di->bat_cap.max_mah_design;
+			di->max_cap_changed = true;
+		} else {
+			di->max_cap_changed = false;
+		}
+
 		mutex_lock(&di->cc_lock);
 		if (!di->flags.conv_done) {
 			/* Wasn't the CC IRQ that got us here */
@@ -2125,7 +2215,7 @@ static void ab8500_fg_algorithm(struct ab8500_fg *di)
 		pr_info("[FG_DATA] %dmAh/%dmAh %d%% (Prev %dmAh %d%%) %dmV %d "
 			"%d %dmA "
 			"%dmA %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d "
-			"%d %d %d %d %d %d\n",
+			"%d %d %d %d %d %d %d\n",
 			di->bat_cap.mah/1000,
 			di->bat_cap.max_mah_design/1000,
 			DIV_ROUND_CLOSEST(di->bat_cap.permille, 10),
@@ -2156,6 +2246,7 @@ static void ab8500_fg_algorithm(struct ab8500_fg *di)
 			di->gpadc_vbat_ideal,
 			di->smd_on,
 			di->max_cap_changed,
+			di->flags.chg_timed_out,
 			di->reenable_charing);
 }
 

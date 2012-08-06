@@ -617,6 +617,25 @@ static void bt404_ts_int_set_pull(bool to_up)
 								__func__);
 }
 
+static int bt404_ts_pin_configure(bool to_gpios)
+{
+	if (to_gpios) {
+		nmk_gpio_set_mode(TSP_SCL_CODINA_R0_0, NMK_GPIO_ALT_GPIO);
+		gpio_direction_output(TSP_SCL_CODINA_R0_0, 0);
+
+		nmk_gpio_set_mode(TSP_SDA_CODINA_R0_0, NMK_GPIO_ALT_GPIO);
+		gpio_direction_output(TSP_SDA_CODINA_R0_0, 0);
+
+	} else {
+		gpio_direction_output(TSP_SCL_CODINA_R0_0, 1);
+		nmk_gpio_set_mode(TSP_SCL_CODINA_R0_0, NMK_GPIO_ALT_C);
+
+		gpio_direction_output(TSP_SDA_CODINA_R0_0, 1);
+		nmk_gpio_set_mode(TSP_SDA_CODINA_R0_0, NMK_GPIO_ALT_C);
+	}
+	return 0;
+}
+
 static struct bt404_ts_platform_data bt404_ts_pdata = {
 	.gpio_int		= TSP_INT_CODINA_R0_0,
 	.gpio_scl		= TSP_SCL_CODINA_R0_0,
@@ -633,7 +652,9 @@ static struct bt404_ts_platform_data bt404_ts_pdata = {
 	.put_isp_i2c_client	= put_isp_i2c_client,
 	.get_isp_i2c_client	= get_isp_i2c_client,
 	.int_set_pull		= bt404_ts_int_set_pull,
- };
+	.pin_configure		= bt404_ts_pin_configure,
+};
+
 static int __init bt404_ts_init(void)
 {
 	int ret;
@@ -700,27 +721,31 @@ static struct i2c_board_info __initdata codina_r0_0_i2c2_devices[] = {
 #endif
 };
 
-static struct i2c_gpio_platform_data codina_gpio_i2c3_data = {
+static struct i2c_gpio_platform_data codina_gpio_i2c7_data = {
 	.sda_pin = TSP_SDA_CODINA_R0_0,
 	.scl_pin = TSP_SCL_CODINA_R0_0,
-	.udelay = 3,	/* closest to 400KHz */
+	.udelay = 1, /* 500/udelay KHz  */
 };
 
-static struct platform_device codina_gpio_i2c3_pdata = {
+static struct platform_device codina_gpio_i2c7_pdata = {
 	.name = "i2c-gpio",
-	.id = 3,
+	.id = 7,
 	.dev = {
-		.platform_data = &codina_gpio_i2c3_data,
+		.platform_data = &codina_gpio_i2c7_data,
 	},
 };
 
-static struct i2c_board_info __initdata codina_r0_0_gpio_i2c3_devices[] = {
+static struct i2c_board_info __initdata codina_r0_0_gpio_i2c7_devices[] = {
 #if defined(CONFIG_TOUCHSCREEN_ZINITIX_BT404)
 	{
 		I2C_BOARD_INFO(BT404_ISP_DEVICE, 0x50),
 		.platform_data	= &bt404_ts_pdata,
-		.irq = GPIO_TO_IRQ(TSP_INT_CODINA_R0_0),
 	},
+#endif
+};
+
+static struct i2c_board_info __initdata codina_r0_0_i2c3_devices[] = {
+#if defined(CONFIG_TOUCHSCREEN_ZINITIX_BT404)
 	{
 		I2C_BOARD_INFO(BT404_TS_DEVICE, 0x20),
 		.platform_data	= &bt404_ts_pdata,
@@ -1285,7 +1310,7 @@ static struct nmk_i2c_controller codina_i2c##id##_data = { \
 U8500_I2C_CONTROLLER(0, 0xe, 1, 8, 400000, 200, I2C_FREQ_MODE_FAST);
 U8500_I2C_CONTROLLER(1, 0xe, 1, 8, 400000, 200, I2C_FREQ_MODE_FAST);
 U8500_I2C_CONTROLLER(2, 0xe, 1, 8, 400000, 200, I2C_FREQ_MODE_FAST);
-/* U8500_I2C_CONTROLLER(3, 0xe, 1, 8, 400000, 200, I2C_FREQ_MODE_FAST); */
+U8500_I2C_CONTROLLER(3, 0xe, 1, 8, 400000, 200, I2C_FREQ_MODE_FAST);
 
 /*
  * SSP
@@ -1533,7 +1558,7 @@ static void sec_jack_mach_init(struct platform_device *pdev)
 	/* initialise threshold for ACCDETECT1 comparator
 	 * and the debounce for all ACCDETECT comparators */
 	ret = abx500_set_register_interruptible(&pdev->dev, AB8500_ECI_AV_ACC,
-						0x80, 0x31);
+						0x80, 0x41);
 	if (ret < 0)
 		pr_err("%s: ab8500 write failed\n", __func__);
 
@@ -1734,11 +1759,11 @@ static const unsigned short ktd259CurrentRatioLookupTable[] = {
 219,	/* (25/32) */
 224,	/* (26/32) */
 229,	/* (27/32) */
-233,	/* (28/32) */
-236,	/* (29/32) */
-238,	/* (30/32) */
-240,	/* (31/32) */
-255	/* (32/32)	KTD259_MAX_CURRENT_RATIO */
+235,	/* (28/32) */
+240,	/* (29/32) */
+245,	/* (30/32) */
+250,	/* (31/32) */
+255		/* (32/32)	KTD259_MAX_CURRENT_RATIO */
 };
 
 static struct ktd259x_bl_platform_data codina_bl_platform_info = {
@@ -1873,7 +1898,7 @@ static void __init codina_i2c_init(void)
 	db8500_add_i2c0(&codina_i2c0_data);
 	db8500_add_i2c1(&codina_i2c1_data);
 	db8500_add_i2c2(&codina_i2c2_data);
-/*	db8500_add_i2c3(&codina_i2c3_data); */
+	db8500_add_i2c3(&codina_i2c3_data);
 
 	if (system_rev >= CODINA_R0_0) {
 		i2c_register_board_info(0,
@@ -1882,10 +1907,8 @@ static void __init codina_i2c_init(void)
 			ARRAY_AND_SIZE(codina_r0_0_i2c1_devices));
 		i2c_register_board_info(2,
 			ARRAY_AND_SIZE(codina_r0_0_i2c2_devices));
-		platform_device_register(&codina_gpio_i2c3_pdata);
 		i2c_register_board_info(3,
-			ARRAY_AND_SIZE(codina_r0_0_gpio_i2c3_devices));
-
+			ARRAY_AND_SIZE(codina_r0_0_i2c3_devices));
 		platform_device_register(&codina_gpio_i2c4_pdata);
 		i2c_register_board_info(4,
 			ARRAY_AND_SIZE(codina_r0_0_gpio_i2c4_devices));
@@ -1895,6 +1918,9 @@ static void __init codina_i2c_init(void)
 		platform_device_register(&codina_gpio_i2c6_pdata);
 		i2c_register_board_info(6,
 			ARRAY_AND_SIZE(codina_r0_0_gpio_i2c6_devices));
+		platform_device_register(&codina_gpio_i2c7_pdata);
+		i2c_register_board_info(7,
+			ARRAY_AND_SIZE(codina_r0_0_gpio_i2c7_devices));
 	}
 }
 

@@ -86,6 +86,7 @@ static struct mmci_platform_data ssg_sdi0_data = {
 	.gpio_cd	= T_FLASH_DETECT_CODINA_R0_0,
 	.gpio_wp	= -1,
 	.cd_invert	= true,
+	.signal_dir	= true,
 	.sigdir		= MMCI_ST_DIRFBCLK,
 
 #ifdef CONFIG_STE_DMA40

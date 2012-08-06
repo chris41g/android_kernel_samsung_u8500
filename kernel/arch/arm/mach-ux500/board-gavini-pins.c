@@ -515,7 +515,9 @@ static pin_cfg_t gavini_r0_1_pins[] = {
 	GPIO16_I2C1_SCL,
 	GPIO17_I2C1_SDA,
 
+	GPIO18_GPIO		| PIN_INPUT_PULLDOWN,	/* NC */
 	GPIO19_GPIO		| PIN_OUTPUT_LOW,	/* Projector LED En */
+	GPIO20_GPIO		| PIN_INPUT_PULLDOWN,	/* NC */
 
 	/* Debug/Console UART */
 	GPIO29_U2_RXD	| PIN_INPUT_PULLUP,
@@ -646,11 +648,180 @@ static pin_cfg_t gavini_r0_1_pins[] = {
 	GPIO267_USB_DAT0,
 };
 
+static pin_cfg_t gavini_r0_3_pins[] = {
+	/* GBF UART */
+	/* uart-0 pins gpio configuration should be
+	 * kept intact to prevent glitch in tx line
+	 * when tty dev is opened. Later these pins
+	 * are configured to uart gavini_r0_0_pins_uart0
+	 *
+	 * It will be replaced with uart configuration
+	 * once the issue is solved.
+	 */
+	GPIO0_GPIO		| PIN_INPUT_PULLUP,
+	GPIO1_GPIO		| PIN_OUTPUT_HIGH,
+	GPIO2_GPIO		| PIN_INPUT_PULLUP,
+	GPIO3_GPIO		| PIN_OUTPUT_LOW,
+
+	/* MSP0 (BT) */
+	GPIO12_MSP0_TXD,
+	GPIO13_MSP0_TFS,
+	GPIO14_MSP0_TCK,
+	GPIO15_MSP0_RXD,
+
+	/* I2C Camera */
+	GPIO16_I2C1_SCL,
+	GPIO17_I2C1_SDA,
+
+	GPIO18_GPIO		| PIN_INPUT_PULLDOWN,	/* NC */
+	GPIO19_GPIO		| PIN_OUTPUT_LOW,	/* Projector LED En */
+	GPIO20_GPIO		| PIN_OUTPUT_HIGH,	/* LCD_BL_EN */
+
+	/* Debug/Console UART */
+	GPIO29_U2_RXD	| PIN_INPUT_PULLUP,
+	GPIO30_U2_TXD	| PIN_OUTPUT_HIGH,
+
+	GPIO31_GPIO		| PIN_INPUT_PULLDOWN,	/* NC */
+	GPIO32_GPIO		| PIN_INPUT_NOPULL,	/* PRJ_ON_HOT_KEY */
+
+	/* MSP AB8500 */
+	GPIO33_MSP1_TXD,
+	GPIO34_MSP1_TFS,
+	GPIO35_MSP1_TCK,
+	GPIO36_MSP1_RXD,
+
+	GPIO64_GPIO		| PIN_OUTPUT_LOW,	/* VT_CAM_STBY */
+	GPIO65_GPIO		| PIN_OUTPUT_LOW,	/* RST_VT_CAM */
+	GPIO66_GPIO		| PIN_INPUT_PULLDOWN,	/* NC */
+	GPIO67_GPIO		| PIN_INPUT_PULLUP,	/* VOL_UP */
+	GPIO68_GPIO		| PIN_OUTPUT_LOW,	/* EN_LED_LDO */
+	GPIO69_GPIO		| PIN_INPUT_PULLDOWN,	/* NC */
+
+	GPIO86_GPIO		| PIN_INPUT_PULLDOWN,	/* NC */
+	GPIO87_GPIO		| PIN_OUTPUT_LOW,	/* Projector DMD park signal */
+	GPIO88_GPIO		| PIN_OUTPUT_HIGH,	/* Projector ON */
+	GPIO89_GPIO		| PIN_OUTPUT_LOW,	/* Projector EN */
+	GPIO90_GPIO		| PIN_INPUT_PULLDOWN,	/* NC */
+
+	GPIO91_GPIO		| PIN_INPUT_PULLUP,	/* HOME_KEY */
+	GPIO92_GPIO		| PIN_INPUT_PULLUP,	/* VOL_DOWN */
+	GPIO93_GPIO		| PIN_INPUT_NOPULL,	/* OLED_DETECT_BB */
+	GPIO94_GPIO		| PIN_OUTPUT_HIGH,	/* TSP_LDO_ON */
+	GPIO95_GPIO		| PIN_INPUT_PULLUP,	/* JACK_nINT */
+
+	GPIO97_GPIO		| PIN_INPUT_PULLDOWN,	/* BT_HOST_WAKE */
+
+	/* MMC2 (eMMC) */
+	GPIO128_MC2_CLK		| PIN_OUTPUT_LOW,
+	GPIO129_MC2_CMD		| PIN_INPUT_PULLUP,
+	GPIO130_MC2_FBCLK	| PIN_INPUT_NOPULL,
+	GPIO131_MC2_DAT0	| PIN_INPUT_PULLUP,
+	GPIO132_MC2_DAT1	| PIN_INPUT_PULLUP,
+	GPIO133_MC2_DAT2	| PIN_INPUT_PULLUP,
+	GPIO134_MC2_DAT3	| PIN_INPUT_PULLUP,
+	GPIO135_MC2_DAT4	| PIN_INPUT_PULLUP,
+	GPIO136_MC2_DAT5	| PIN_INPUT_PULLUP,
+	GPIO137_MC2_DAT6	| PIN_INPUT_PULLUP,
+	GPIO138_MC2_DAT7	| PIN_INPUT_PULLUP,
+
+	GPIO139_GPIO		| PIN_OUTPUT_HIGH,	/* LCD_RESX */
+	GPIO140_GPIO		| PIN_OUTPUT_LOW,	/* CAM_FLASH_EN */
+	GPIO141_GPIO		| PIN_OUTPUT_LOW,	/* CAM_FLASH_MODE */
+	GPIO142_GPIO		| PIN_OUTPUT_LOW,	/* 5M_CAM_STBY */
+	GPIO143_GPIO		| PIN_INPUT_NOPULL,	/* SUBPMU_SCL GPIO I2C (also compass MMC328) */
+	GPIO144_GPIO		| PIN_INPUT_NOPULL,	/* SUBPMU_SDA GPIO I2C (also compass MMC328) */
+	GPIO145_GPIO		| PIN_OUTPUT_LOW,	/* SUBPMU_PWRON */
+
+	GPIO146_GPIO		| PIN_INPUT_PULLUP,	/* PS_VOUT */
+
+	GPIO149_GPIO		| PIN_OUTPUT_LOW,	/* RST_5M_CAM */
+
+	GPIO151_GPIO		| PIN_INPUT_PULLDOWN,	/* NC */
+	GPIO152_GPIO		| PIN_INPUT_PULLDOWN,	/* NC */
+
+	GPIO192_GPIO		| PIN_OUTPUT_HIGH,	/* MEM_LDO_EN */
+	GPIO193_GPIO		| PIN_OUTPUT_LOW,	/* TXS0206-29_EN */
+	GPIO194_GPIO		| PIN_OUTPUT_LOW,	/* MOT_HEN */
+	GPIO195_GPIO		| PIN_OUTPUT_LOW,	/* MOT_LEN */
+	GPIO196_GPIO		| PIN_INPUT_NOPULL,	/* MPR_SCL GPIO I2C */
+	GPIO197_GPIO		| PIN_INPUT_NOPULL,	/* MPR_SDA GPIO I2C */
+	GPIO198_GPIO		| PIN_INPUT_NOPULL,	/* PROJECTOR_INTZ */
+	GPIO199_GPIO		| PIN_OUTPUT_HIGH,	/* BT_WAKE */
+	GPIO200_GPIO		| PIN_OUTPUT_LOW,	/* EARSPK_SEL_EAR_LOW_DOC_HIGH */
+
+	GPIO201_GPIO		| PIN_INPUT_NOPULL,	/* MOT_SCL GPIO I2C */
+	GPIO202_GPIO		| PIN_INPUT_NOPULL,	/* MOT_SDA GPIO I2C */
+	GPIO203_GPIO		| PIN_INPUT_PULLUP,	/* SMD pogo pin */
+	GPIO204_GPIO		| PIN_OUTPUT_HIGH,	/* COMPASS_RST */
+	GPIO205_GPIO		| PIN_INPUT_NOPULL,	/* Projector barrel control signal */
+	GPIO206_GPIO		| PIN_INPUT_NOPULL,	/* Projector barrel control signal */
+	GPIO207_GPIO		| PIN_INPUT_NOPULL,	/* Projector barrel control signal */
+	GPIO209_GPIO		| PIN_OUTPUT_LOW,	/* BT_RST_N */
+
+	/* SDI1 (SDIO) WLAN */
+	GPIO208_MC1_CLK		| PIN_OUTPUT_LOW,
+	GPIO210_MC1_CMD		| PIN_INPUT_PULLUP,
+	GPIO211_MC1_DAT0	| PIN_INPUT_PULLUP,
+	GPIO212_MC1_DAT1	| PIN_INPUT_PULLUP,
+	GPIO213_MC1_DAT2	| PIN_INPUT_PULLUP,
+	GPIO214_MC1_DAT3	| PIN_INPUT_PULLUP,
+
+	GPIO215_GPIO		| PIN_OUTPUT_LOW,	/* WLAN_RST_N */
+	GPIO216_GPIO		| PIN_INPUT_PULLDOWN,	/* WL_HOST_WAKE */
+	GPIO217_GPIO		| PIN_INPUT_NOPULL,	/* T_FLASH_DETECT */
+	GPIO218_GPIO		| PIN_INPUT_PULLUP,	/* TSP_INT_1.8V */
+	GPIO219_GPIO		| PIN_OUTPUT_HIGH,	/* LCD_PWR_EN */
+
+	GPIO221_GPIO		| PIN_INPUT_NOPULL,	/* Projector barrel control signal */
+	GPIO222_GPIO		| PIN_OUTPUT_LOW,	/* BT_VREG_EN */
+#ifdef CONFIG_SPI_GPIO
+	/* DPI LCD SPI I/F */
+	GPIO220_GPIO		| PIN_OUTPUT_HIGH,	/* GPIO220_SPI0_CLK */
+	GPIO223_GPIO		| PIN_OUTPUT_HIGH,
+	GPIO224_GPIO		| PIN_OUTPUT_HIGH,	/* GPIO224_SPI0_TXD */
+#else
+	/* DPI LCD SPI I/F */
+	GPIO220_SPI0_CLK,
+	GPIO223_GPIO		| PIN_OUTPUT_HIGH,
+	GPIO224_SPI0_TXD,
+#endif
+
+	GPIO225_GPIO		| PIN_OUTPUT_HIGH,	/* LCD_SDO */
+	GPIO226_GPIO		| PIN_INPUT_NOPULL,	/* SENSOR_INT */
+	GPIO227_GPIO		| PIN_OUTPUT_LOW,	/* MOT_PWM(CLK) */
+	GPIO228_GPIO		| PIN_OUTPUT_LOW,	/* CAM_MCLK */
+
+	/* USB, pin 256-267 */
+	GPIO256_USB_NXT,
+	GPIO257_USB_STP,
+	GPIO258_USB_XCLK,
+	GPIO259_USB_DIR,
+	GPIO260_USB_DAT7,
+	GPIO261_USB_DAT6,
+	GPIO262_USB_DAT5,
+	GPIO263_USB_DAT4,
+	GPIO264_USB_DAT3,
+	GPIO265_USB_DAT2,
+	GPIO266_USB_DAT1,
+	GPIO267_USB_DAT0,
+};
+
+
 /* STM trace or SD Card pin configurations */
 static pin_cfg_t gavini_r0_0_ape_trace[] = {
 	GPIO18_GPIO | PIN_OUTPUT_LOW,	/* CMD.Dir		*/
 	GPIO19_GPIO | PIN_OUTPUT_HIGH,	/* DAT0.Dir	*/
 	GPIO20_GPIO | PIN_OUTPUT_HIGH,	/* DAT123.Dir */
+	GPIO22_GPIO | PIN_INPUT_NOPULL,	/* CLK-f */
+
+	PIN_CFG(23, ALT_C),	/* APE CLK */
+	PIN_CFG(25, ALT_C),	/* APE DAT0 */
+	PIN_CFG(26, ALT_C),	/* APE DAT1 */
+	PIN_CFG(27, ALT_C),	/* APE DAT2 */
+	PIN_CFG(28, ALT_C),	/* APE DAT3 */
+};
+
+static pin_cfg_t gavini_r0_1_ape_trace[] = {
 	GPIO22_GPIO | PIN_INPUT_NOPULL,	/* CLK-f */
 
 	PIN_CFG(23, ALT_C),	/* APE CLK */
@@ -702,6 +873,17 @@ static pin_cfg_t gavini_r0_0_sdmmc[] = {
 	GPIO18_MC0_CMDDIR	| PIN_OUTPUT_HIGH,
 	GPIO19_MC0_DAT0DIR	| PIN_OUTPUT_HIGH,
 	GPIO20_MC0_DAT2DIR	| PIN_OUTPUT_HIGH,
+	GPIO22_MC0_FBCLK	| PIN_INPUT_NOPULL,
+	GPIO23_MC0_CLK		| PIN_OUTPUT_LOW,
+	GPIO24_MC0_CMD		| PIN_INPUT_PULLUP,
+	GPIO25_MC0_DAT0		| PIN_INPUT_PULLUP,
+	GPIO26_MC0_DAT1		| PIN_INPUT_PULLUP,
+	GPIO27_MC0_DAT2		| PIN_INPUT_PULLUP,
+	GPIO28_MC0_DAT3		| PIN_INPUT_PULLUP,
+};
+
+static pin_cfg_t gavini_r0_1_sdmmc[] = {
+	/* MMC0 (MicroSD card) */
 	GPIO22_MC0_FBCLK	| PIN_INPUT_NOPULL,
 	GPIO23_MC0_CLK		| PIN_OUTPUT_LOW,
 	GPIO24_MC0_CMD		| PIN_INPUT_PULLUP,
@@ -865,7 +1047,10 @@ static void __init sdmmc_pins_init(void)
 		value |= 0x00000200;	/* Set bit 9 */
 		writel(value, prcm_gpiocr);
 
-		nmk_config_pins(gavini_r0_0_ape_trace, ARRAY_SIZE(gavini_r0_0_ape_trace));
+		if (system_rev > GAVINI_R0_0_D)
+			nmk_config_pins(gavini_r0_1_ape_trace, ARRAY_SIZE(gavini_r0_1_ape_trace));
+		else
+			nmk_config_pins(gavini_r0_0_ape_trace, ARRAY_SIZE(gavini_r0_0_ape_trace));
 
 		/* also need to ensure VAUX3 turned on (defaults to 2.91V) */
 		gavini_regulators[AB8500_LDO_AUX3].constraints.valid_ops_mask = 0;
@@ -906,7 +1091,10 @@ static void __init sdmmc_pins_init(void)
 		value &= ~0x00000200; /* clear bit 9 */
 		writel(value, prcm_gpiocr);
 
-		nmk_config_pins(gavini_r0_0_sdmmc, ARRAY_SIZE(gavini_r0_0_sdmmc));
+		if (system_rev > GAVINI_R0_0_D)
+			nmk_config_pins(gavini_r0_1_sdmmc, ARRAY_SIZE(gavini_r0_1_sdmmc));
+		else
+			nmk_config_pins(gavini_r0_0_sdmmc, ARRAY_SIZE(gavini_r0_0_sdmmc));
 	}
 }
 
@@ -964,56 +1152,70 @@ static pin_cfg_t gavini_r0_0_power_save_bank0[] = {
 };
 
 static pin_cfg_t gavini_r0_0_c_power_save_bank0[] = {
-	GPIO0_GPIO | PIN_SLPM_DIR_INPUT |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_ENABLED,
-	GPIO1_GPIO | PIN_SLPM_OUTPUT_HIGH |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
-	GPIO2_GPIO | PIN_SLPM_DIR_INPUT |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_ENABLED,
-	GPIO3_GPIO | PIN_SLPM_OUTPUT_LOW |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
+	GPIO0_GPIO | PIN_INPUT_PULLUP,  /* GBF_UART_CTS */
+	GPIO1_GPIO | PIN_OUTPUT_HIGH,  /* GBF_UART_RTSn */
+	GPIO2_GPIO | PIN_INPUT_PULLUP,  /* GBF_UART_RXD */
+	GPIO3_GPIO | PIN_OUTPUT_LOW,  /* GBF_UART_TXD */
 
-	GPIO4_GPIO | PIN_SLPM_DIR_INPUT |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_ENABLED,
-	GPIO5_GPIO | PIN_SLPM_OUTPUT_HIGH |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
-	GPIO6_GPIO | PIN_SLPM_DIR_INPUT |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_ENABLED, /* GPS_CTS */
-	GPIO7_GPIO | PIN_SLPM_OUTPUT_HIGH |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED, /* GPS_RTS */
+	GPIO4_GPIO | PIN_INPUT_PULLUP,  /* GPS_UART_RXD */
+	GPIO5_GPIO | PIN_OUTPUT_HIGH,  /* GPS_UART_TXD */
+	GPIO6_GPIO | PIN_INPUT_PULLUP,  /* GPS_UART_CTS */
+	GPIO7_GPIO | PIN_OUTPUT_HIGH,  /* GPS_UART_RTS */
 
-	GPIO8_GPIO | PIN_SLPM_DIR_INPUT |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED, /* MUS_SDA */
-	GPIO9_GPIO | PIN_SLPM_DIR_INPUT |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED, /* MUS_SCL */
-	GPIO10_GPIO | PIN_SLPM_DIR_INPUT |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED, /* AGC_SDA */
-	GPIO11_GPIO | PIN_SLPM_DIR_INPUT |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED, /* AGC_SCL */
+	GPIO8_GPIO | PIN_INPUT_NOPULL,  /* MUS_SDA */
+	GPIO9_GPIO | PIN_INPUT_NOPULL,  /* MUS_SCL */
+	GPIO10_GPIO | PIN_INPUT_NOPULL,  /* AGC_I2C_SDA */
+	GPIO11_GPIO | PIN_INPUT_NOPULL,  /* AGC_I2C_SCL */
 
-	GPIO12_GPIO | PIN_SLPM_OUTPUT_LOW |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
-	GPIO13_GPIO | PIN_SLPM_OUTPUT_LOW |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
-	GPIO14_GPIO | PIN_SLPM_OUTPUT_LOW |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
-	GPIO15_GPIO | PIN_SLPM_DIR_INPUT |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
+	GPIO12_GPIO | PIN_OUTPUT_LOW,  /* GBF_IOM_DOUT */
+	GPIO13_GPIO | PIN_OUTPUT_LOW,  /* GBF_IOM_TFS */
+	GPIO14_GPIO | PIN_OUTPUT_LOW,  /* GBF_IOM_CLK */
+	GPIO15_GPIO | PIN_INPUT_NOPULL,  /* GBF_IOM_DIN */
 
-	GPIO16_GPIO | PIN_SLPM_DIR_INPUT |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PULL_DOWN, /* CAM_I2C_SCL */
-	GPIO17_GPIO | PIN_SLPM_DIR_INPUT |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PULL_DOWN, /* CAM_I2C_SDA */
+	GPIO16_GPIO | PIN_INPUT_PULLDOWN,  /* CAM_I2C_SCL */
+	GPIO17_GPIO | PIN_INPUT_PULLDOWN,  /* CAM_I2C_SDA */
 
-	/* SD/MMC card pins handled in seperate table (GPIOs 18-28, excl 21) */
+	/* SD/MMC card pins handled in seperate table (GPIO 18-28, excl 21) */
 	/* GPIO21_GPIO (GPS_RST_N) no change */
 
-	GPIO29_U2_RXD | PIN_SLPM_DIR_INPUT |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_ENABLED,
-	GPIO30_U2_TXD | PIN_SLPM_DIR_OUTPUT |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
-	GPIO31_GPIO | PIN_SLPM_OUTPUT_LOW |
-		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED, /* lcd_bl */
+	GPIO29_GPIO | PIN_INPUT_PULLUP,  /* IF_RXD */
+	GPIO30_GPIO | PIN_OUTPUT_HIGH,  /* IF_TXD */
+	GPIO31_GPIO | PIN_OUTPUT_LOW,  /* LCD_BL_CTRL */
+};
+
+static pin_cfg_t gavini_r0_3_power_save_bank0[] = {
+	GPIO0_GPIO | PIN_INPUT_PULLUP,  /* GBF_UART_CTS */
+	GPIO1_GPIO | PIN_OUTPUT_HIGH,  /* GBF_UART_RTSn */
+	GPIO2_GPIO | PIN_INPUT_PULLUP,  /* GBF_UART_RXD */
+	GPIO3_GPIO | PIN_OUTPUT_LOW,  /* GBF_UART_TXD */
+
+	GPIO4_GPIO | PIN_INPUT_PULLUP,  /* GPS_UART_RXD */
+	GPIO5_GPIO | PIN_OUTPUT_HIGH,  /* GPS_UART_TXD */
+	GPIO6_GPIO | PIN_INPUT_PULLUP,  /* GPS_UART_CTS */
+	GPIO7_GPIO | PIN_OUTPUT_HIGH,  /* GPS_UART_RTS */
+
+	GPIO8_GPIO | PIN_INPUT_NOPULL,  /* MUS_SDA */
+	GPIO9_GPIO | PIN_INPUT_NOPULL,  /* MUS_SCL */
+	GPIO10_GPIO | PIN_INPUT_NOPULL,  /* AGC_I2C_SDA */
+	GPIO11_GPIO | PIN_INPUT_NOPULL,  /* AGC_I2C_SCL */
+
+	GPIO12_GPIO | PIN_OUTPUT_LOW,  /* GBF_IOM_DOUT */
+	GPIO13_GPIO | PIN_OUTPUT_LOW,  /* GBF_IOM_TFS */
+	GPIO14_GPIO | PIN_OUTPUT_LOW,  /* GBF_IOM_CLK */
+	GPIO15_GPIO | PIN_INPUT_NOPULL,  /* GBF_IOM_DIN */
+
+	GPIO16_GPIO | PIN_INPUT_PULLDOWN,  /* CAM_I2C_SCL */
+	GPIO17_GPIO | PIN_INPUT_PULLDOWN,  /* CAM_I2C_SDA */
+	GPIO18_GPIO | PIN_INPUT_PULLDOWN,  /* NC */
+
+	GPIO20_GPIO | PIN_OUTPUT_LOW,  /* LCD_BL_CTRL */
+
+	/* GPIO21_GPIO (GPS_RST_N) no change */
+	/* SD/MMC card pins handled in seperate table (GPIO 22-28) */
+
+	GPIO29_GPIO | PIN_INPUT_PULLUP,  /* IF_RXD */
+	GPIO30_GPIO | PIN_OUTPUT_HIGH,  /* IF_TXD */
+	GPIO31_GPIO | PIN_INPUT_PULLDOWN,  /* NC */
 };
 
 static pin_cfg_t gavini_r0_0_sdmmc_sleep[] = {
@@ -1026,6 +1228,26 @@ static pin_cfg_t gavini_r0_0_sdmmc_sleep[] = {
 	GPIO20_GPIO | PIN_SLPM_OUTPUT_HIGH |
 		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
 
+	GPIO22_GPIO | PIN_SLPM_DIR_INPUT |
+		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PULL_DOWN,
+	GPIO23_GPIO | PIN_SLPM_OUTPUT_LOW |
+		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
+
+	GPIO24_GPIO | PIN_SLPM_DIR_INPUT |
+		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
+	GPIO25_GPIO | PIN_SLPM_DIR_INPUT |
+		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
+	GPIO26_GPIO | PIN_SLPM_DIR_INPUT |
+		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
+	GPIO27_GPIO | PIN_SLPM_DIR_INPUT |
+		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
+
+	GPIO28_GPIO | PIN_SLPM_DIR_INPUT |
+		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PDIS_DISABLED,
+};
+
+static pin_cfg_t gavini_r0_1_sdmmc_sleep[] = {
+	/* MMC0 (MicroSD card) */
 	GPIO22_GPIO | PIN_SLPM_DIR_INPUT |
 		PIN_SLPM_WAKEUP_ENABLE | PIN_SLPM_PULL_DOWN,
 	GPIO23_GPIO | PIN_SLPM_OUTPUT_LOW |
@@ -1076,15 +1298,12 @@ static pin_cfg_t gavini_common_sleep_table[] = {
 	GPIO84_GPIO | PIN_INPUT_PULLDOWN,
 	GPIO85_GPIO | PIN_INPUT_PULLDOWN,
 	GPIO86_GPIO | PIN_INPUT_PULLDOWN,  /* GPS_ON_OFF(OPEN) */
-	GPIO87_GPIO | PIN_OUTPUT_LOW,  /* PARKZ */
-	GPIO88_GPIO | PIN_OUTPUT_HIGH,  /* MP_ON */
-	GPIO89_GPIO | PIN_OUTPUT_LOW,  /* PRJ_EN */
 
 	GPIO90_GPIO | PIN_INPUT_PULLDOWN,
 	GPIO91_GPIO | PIN_INPUT_PULLUP,  /* HOME_KEY */
 	GPIO92_GPIO | PIN_INPUT_PULLUP,
 	GPIO93_GPIO | PIN_OUTPUT_LOW,
-	GPIO94_GPIO | PIN_OUTPUT_LOW,  /* TSP_LDO_ON */
+/*	GPIO94_GPIO | PIN_OUTPUT_LOW, */ /* TSP_LDO_ON */
 	GPIO95_GPIO | PIN_INPUT_PULLUP,
 /*	GPIO96_GPIO | PIN_OUTPUT_LOW, */ /* GPS_ON_OFF */
 	GPIO97_GPIO | PIN_INPUT_PULLDOWN,  /* BT_HOST_WAKE */
@@ -1134,7 +1353,6 @@ static pin_cfg_t gavini_common_sleep_table[] = {
 	GPIO166_GPIO | PIN_INPUT_PULLDOWN,
 	GPIO167_GPIO | PIN_INPUT_PULLDOWN,
 	GPIO168_GPIO | PIN_INPUT_PULLDOWN,
-	GPIO169_GPIO | PIN_OUTPUT_LOW,  /* EN_LCD */
 
 	GPIO170_GPIO | PIN_INPUT_PULLDOWN,
 	GPIO171_GPIO | PIN_INPUT_PULLDOWN,
@@ -1168,7 +1386,7 @@ static pin_cfg_t gavini_common_sleep_table[] = {
 /*	GPIO215_GPIO | PIN_OUTPUT_LOW, */ /* WIFI_RST_N */
 	GPIO216_GPIO | PIN_INPUT_PULLDOWN,  /* WIFI_HOST_WAKE */
 	GPIO217_GPIO | PIN_INPUT_NOPULL,  /* T_FLASH_DETECT */
-	GPIO218_GPIO | PIN_INPUT_PULLDOWN,  /* TSP_INT_1V8 */
+/*	GPIO218_GPIO | PIN_INPUT_PULLDOWN, */ /* TSP_INT_1V8 */
 	GPIO219_GPIO | PIN_OUTPUT_LOW,  /* LCD_PWR_EN */
 
 /*	GPIO220_GPIO | PIN_OUTPUT_LOW, */ /* LCD_SCL */
@@ -1180,9 +1398,8 @@ static pin_cfg_t gavini_common_sleep_table[] = {
 	GPIO226_GPIO | PIN_INPUT_PULLDOWN,  /* SENSOR_INT */
 	GPIO227_GPIO | PIN_OUTPUT_LOW,  /* MOT_PWM */
 	GPIO228_GPIO | PIN_OUTPUT_LOW,  /* CAM_MCLK */
-	GPIO229_GPIO | PIN_INPUT_PULLDOWN,
-
-	GPIO230_GPIO | PIN_INPUT_PULLDOWN,
+/*	GPIO229_GPIO | PIN_INPUT_PULLDOWN, */
+/*	GPIO230_GPIO | PIN_INPUT_PULLDOWN, */
 
 	GPIO256_GPIO | PIN_INPUT_PULLDOWN,
 	GPIO257_GPIO | PIN_OUTPUT_HIGH,
@@ -1220,7 +1437,19 @@ static pin_cfg_t gavini_r0_0_c_sleep_table[] = {
 };
 
 static pin_cfg_t gavini_r0_1_sleep_table[] = {
-	GPIO19_GPIO | PIN_INPUT_PULLDOWN,  /* Projector LED EN */
+	GPIO18_GPIO | PIN_INPUT_PULLDOWN,  /* NC */
+	GPIO20_GPIO | PIN_INPUT_PULLDOWN,  /* NC */
+/*	GPIO192_GPIO | PIN_INPUT_PULLDOWN, */ /* MEM_LDO_EN */
+	GPIO193_GPIO | PIN_OUTPUT_LOW, /* TXS0206-29_EN */
+	GPIO200_GPIO | PIN_OUTPUT_LOW, /* EARSPK_SEL */
+/*	GPIO225_GPIO | PIN_OUTPUT_LOW, */ /* LCD_SDO */
+	GPIO196_GPIO | PIN_INPUT_PULLDOWN,  /* MPR_SCL */
+	GPIO197_GPIO | PIN_INPUT_PULLDOWN,  /* MPR_SDA */
+	GPIO198_GPIO | PIN_INPUT_PULLDOWN,  /* PROJECTOR_INTZ */
+};
+
+static pin_cfg_t gavini_r0_3_sleep_table[] = {
+	GPIO20_GPIO | PIN_OUTPUT_LOW,	/* LCD_BL_CTRL */
 /*	GPIO192_GPIO | PIN_INPUT_PULLDOWN, */ /* MEM_LDO_EN */
 	GPIO193_GPIO | PIN_OUTPUT_LOW, /* TXS0206-29_EN */
 	GPIO200_GPIO | PIN_OUTPUT_LOW, /* EARSPK_SEL */
@@ -1243,9 +1472,12 @@ static void gavini_pins_suspend_force(void)
 	if (system_rev < GAVINI_R0_0_C) {
 		sleep_pins_config_pm(gavini_r0_0_power_save_bank0,
 				ARRAY_SIZE(gavini_r0_0_power_save_bank0));
-	} else {
-		sleep_pins_config_pm_mux(gavini_r0_0_c_power_save_bank0,
+	} else if (system_rev >= GAVINI_R0_0_C && system_rev < GAVINI_R0_3) {
+		nmk_config_pins(gavini_r0_0_c_power_save_bank0,
 				ARRAY_SIZE(gavini_r0_0_c_power_save_bank0));
+	} else if (system_rev >= GAVINI_R0_3) {
+		nmk_config_pins(gavini_r0_3_power_save_bank0,
+				ARRAY_SIZE(gavini_r0_3_power_save_bank0));
 	}
 
 	if (!(sec_debug_settings & (SEC_DBG_STM_APE_OPT | SEC_DBG_STM_MODEM_OPT))) {
@@ -1262,9 +1494,12 @@ static void gavini_pins_suspend_force(void)
 	} else if (system_rev >= GAVINI_R0_0_C && system_rev < GAVINI_R0_1) {
 		nmk_config_pins(gavini_r0_0_c_sleep_table,
 				ARRAY_SIZE(gavini_r0_0_c_sleep_table));
-	} else {
+	} else if (system_rev >= GAVINI_R0_1 && system_rev < GAVINI_R0_3) {
 		nmk_config_pins(gavini_r0_1_sleep_table,
 				ARRAY_SIZE(gavini_r0_1_sleep_table));
+	} else if (system_rev >= GAVINI_R0_3) {
+		nmk_config_pins(gavini_r0_3_sleep_table,
+				ARRAY_SIZE(gavini_r0_3_sleep_table));
 	}
 }
 
@@ -1286,14 +1521,21 @@ static void gavini_pins_suspend_force_mux(void)
 	if (system_rev < GAVINI_R0_0_C) {
 		sleep_pins_config_pm_mux(gavini_r0_0_power_save_bank0,
 					ARRAY_SIZE(gavini_r0_0_power_save_bank0));
-	} else {
+	} else if (system_rev >= GAVINI_R0_0_C && system_rev < GAVINI_R0_3) {
 		sleep_pins_config_pm_mux(gavini_r0_0_c_power_save_bank0,
 					ARRAY_SIZE(gavini_r0_0_c_power_save_bank0));
+	} else if (system_rev >= GAVINI_R0_3) {
+		sleep_pins_config_pm_mux(gavini_r0_3_power_save_bank0,
+				ARRAY_SIZE(gavini_r0_3_power_save_bank0));
 	}
 
 	if (!(sec_debug_settings & (SEC_DBG_STM_APE_OPT | SEC_DBG_STM_MODEM_OPT))) {
 		/* not using SD card I/F for modem trace */
-		sleep_pins_config_pm_mux(gavini_r0_0_sdmmc_sleep,
+		if (system_rev > GAVINI_R0_0_D)
+			sleep_pins_config_pm_mux(gavini_r0_1_sdmmc_sleep,
+					ARRAY_SIZE(gavini_r0_1_sdmmc_sleep));
+		else
+			sleep_pins_config_pm_mux(gavini_r0_0_sdmmc_sleep,
 					ARRAY_SIZE(gavini_r0_0_sdmmc_sleep));
 	}
 
@@ -1360,6 +1602,8 @@ void __init ssg_pins_init(void)
 		nmk_config_pins(gavini_r0_0_C_pins, ARRAY_SIZE(gavini_r0_0_C_pins));
 	} else if (system_rev == GAVINI_R0_1) {
 		nmk_config_pins(gavini_r0_1_pins, ARRAY_SIZE(gavini_r0_1_pins));
+	} else if (system_rev >= GAVINI_R0_3) {
+		nmk_config_pins(gavini_r0_3_pins, ARRAY_SIZE(gavini_r0_3_pins));
 	}
 
 	ux500_pins_add(gavini_r0_0_lookup_pins, ARRAY_SIZE(gavini_r0_0_lookup_pins));

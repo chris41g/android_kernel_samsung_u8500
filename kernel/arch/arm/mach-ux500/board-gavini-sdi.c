@@ -86,10 +86,8 @@ static struct mmci_platform_data ssg_sdi0_data = {
 	.gpio_cd	= T_FLASH_DETECT_GAVINI_R0_0,
 	.gpio_wp	= -1,
 	.cd_invert	= true,
-	.sigdir 	= MMCI_ST_DIRFBCLK |
-				MMCI_ST_DIRCMD |
-				MMCI_ST_DIRDAT0 |
-				MMCI_ST_DIRDAT2,
+	.signal_dir	= false,
+	.sigdir 	= MMCI_ST_DIRFBCLK,
 
 #ifdef CONFIG_STE_DMA40
 	.dma_filter	= stedma40_filter,

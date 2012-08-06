@@ -109,6 +109,8 @@
 
 #include <linux/leds.h>
 
+unsigned int board_id;
+
 unsigned int sec_debug_settings;
 int jig_smd = 1;
 EXPORT_SYMBOL(jig_smd);
@@ -193,7 +195,7 @@ struct yas_platform_data yas_data = {
 static struct mpu3050_platform_data mpu_data = {
 	.int_config  = 0x12,
 	.orientation = {
-		0,  1,  0,
+		0,  -1,  0,
 		1,  0,  0,
 		0,  0,  1
 	},
@@ -226,14 +228,14 @@ static struct mpu3050_platform_data mpu_data = {
 static struct mpu3050_platform_data mpu_data_gavini_r00 = {
 	.int_config  = 0x12,
 	.orientation = {
-		0,  1,  0,
+		0,  -1,  0,
 		1,  0,  0,
 		0,  0,  1
 	},
 	/* accel */
 	.accel = {
 		.get_slave_descr = get_accel_slave_descr,
-		.adapt_num   = 8,
+		.adapt_num   = 0,
 		.bus         = EXT_SLAVE_BUS_SECONDARY,
 		.address     = 0x18,
 		.orientation = {
@@ -259,14 +261,14 @@ static struct mpu3050_platform_data mpu_data_gavini_r00 = {
 static struct mpu3050_platform_data mpu_data_gavini_r01 = {
 	.int_config  = 0x12,
 	.orientation = {
-		0,  1,  0,
+		0,  -1,  0,
 		1,  0,  0,
 		0,  0,  1
 	},
 	/* accel */
 	.accel = {
 		.get_slave_descr = get_accel_slave_descr,
-		.adapt_num   = 8,
+		.adapt_num   = 0,
 		.bus         = EXT_SLAVE_BUS_SECONDARY,
 		.address     = 0x18,
 		.orientation = {
@@ -369,17 +371,17 @@ static const unsigned short ktd259CurrentRatioLookupTable[] = {
 148,	/* (15/32) */
 159,	/* (16/32) */
 170,	/* (17/32) */
-180,	/* (18/32) */
-191,	/* (19/32) */
-202,	/* (20/32) */
-212,	/* (21/32) */
-223,	/* (22/32) */
-234,	/* (23/32) */
-244,	/* (24/32) */
-255,	/* (25/32) KTD259_MAX_CURRENT_RATIO*/
-300,	/* (26/32) */
-300,	/* (27/32) */
-300,	/* (28/32) */
+177,	/* (18/32) */
+184,	/* (19/32) */
+191,	/* (20/32) */
+198,	/* (21/32) */
+205,	/* (22/32) */
+212,	/* (23/32) */
+219,	/* (24/32) */
+226,	/* (25/32) KTD259_MAX_CURRENT_RATIO*/
+233,	/* (26/32) */
+240,	/* (27/32) */
+255,	/* (28/32) */
 300,	/* (29/32) */
 300,	/* (30/32) */
 300,	/* (31/32) */
@@ -402,6 +404,24 @@ static struct platform_device gavini_backlight_device = {
 		.platform_data = &gavini_bl_platform_info,
 	},
 };
+
+static struct ktd259x_bl_platform_data gavini_bl_platform_info_r0_3 = {
+	.bl_name			= "pwm-backlight",
+	.ctrl_gpio			= LCD_BL_CTRL_GAVINI_R0_3,
+	.ctrl_high			= 1,
+	.ctrl_low			= 0,
+	.max_brightness			= 255,
+	.brightness_to_current_ratio	= ktd259CurrentRatioLookupTable,
+};
+
+static struct platform_device gavini_backlight_device_r0_3 = {
+	.name = BL_DRIVER_NAME_KTD259,
+	.id = -1,
+	.dev = {
+		.platform_data = &gavini_bl_platform_info_r0_3,
+	},
+};
+
 #endif
 
 
@@ -743,20 +763,19 @@ static struct i2c_board_info __initdata gavini_r0_0_c_i2c2_devices[] = {
 	},
 #endif
 };
+
 #if defined(CONFIG_TOUCHSCREEN_MMS136_TS)
-static void mms_ts_int_set_pull(bool to_up)
+static void mms_ts_pin_set_pull(int pin, bool to_up)
 {
-/*	u32 pull = 0x0;
-*/
 	int ret;
 	int pull = (to_up) ? NMK_GPIO_PULL_UP : NMK_GPIO_PULL_DOWN;
 
-	ret = nmk_gpio_set_pull(TSP_INT_GAVINI_R0_0, pull);
+	ret = nmk_gpio_set_pull(pin, pull);
 	if (ret < 0)
-		printk(KERN_ERR "%s: fail to set pull xx on interrupt pin\n",
-								__func__);
-
+		printk(KERN_ERR "%s: fail to set %3d pull %d\n",
+							__func__, pin, to_up);
 }
+
 static int mms_ts_pin_configure(bool to_gpios)
 {
 	/* TOUCH_EN is always an output */
@@ -793,10 +812,9 @@ struct mms_ts_platform_data mms_ts_pdata = {
 	.gpio_vdd_en		= TSP_LDO_ON_GAVINI_R0_0,
 	.pin_configure		= mms_ts_pin_configure,
 	.fw_name_ums		= "/sdcard/firmware/melfas/mms136_ts.fw.bin",
-	.fw_name_builtin	= "melfas/mms136_ts.fw",
 	.key_map		= mms_ts_key_map,
 	.key_nums		= ARRAY_SIZE(mms_ts_key_map),
-	.int_set_pull		= mms_ts_int_set_pull,
+	.pin_set_pull		= mms_ts_pin_set_pull,
 };
 
 void __init mms136_ts_init(void)
@@ -807,6 +825,11 @@ void __init mms136_ts_init(void)
 	gpio_request(TSP_LDO_ON_GAVINI_R0_0, "tsp_en");
 	gpio_request(TSP_SCL_GAVINI_R0_0, "ap_i2c3_scl");
 	gpio_request(TSP_SDA_GAVINI_R0_0, "ap_i2c3_sda");
+
+	if (board_id >= 13)
+		mms_ts_pdata.fw_name_builtin = "melfas/mms136_ts_l.fw";
+	else
+		mms_ts_pdata.fw_name_builtin = "melfas/mms136_ts.fw";
 }
 
 #endif
@@ -2114,14 +2137,14 @@ static void __init gavini_i2c_init(void)
 			ARRAY_AND_SIZE(gavini_r0_0_i2c0_devices));
 		i2c_register_board_info(1,
 			ARRAY_AND_SIZE(gavini_r0_0_i2c1_devices));
-	} else	if (system_rev == GAVINI_R0_0_D){
+	} else	if (system_rev == GAVINI_R0_0_C){
 		i2c_register_board_info(0,
-			ARRAY_AND_SIZE(gavini_r0_0_i2c0_devices_rev00d));
+			ARRAY_AND_SIZE(gavini_r0_0_i2c0_devices_rev00c));
 		i2c_register_board_info(2,
 			ARRAY_AND_SIZE(gavini_r0_0_c_i2c2_devices));
 	} else {
 		i2c_register_board_info(0,
-			ARRAY_AND_SIZE(gavini_r0_0_i2c0_devices_rev00c));
+			ARRAY_AND_SIZE(gavini_r0_0_i2c0_devices_rev00d));
 		i2c_register_board_info(2,
 			ARRAY_AND_SIZE(gavini_r0_0_c_i2c2_devices));
 
@@ -2138,7 +2161,7 @@ static void __init gavini_i2c_init(void)
 	platform_device_register(&gavini_gpio_i2c7_pdata);
 	i2c_register_board_info(7, ARRAY_AND_SIZE(gavini_r0_0_gpio_i2c7_devices));
 
-	if (system_rev< GAVINI_R0_0_C)	{
+	if (system_rev < GAVINI_R0_0_C)	{
 		platform_device_register(&gavini_gpio_i2c8_pdata);
 		i2c_register_board_info(8,
 			ARRAY_AND_SIZE(gavini_r0_0_gpio_i2c8_devices));
@@ -2252,7 +2275,9 @@ static void __init gavini_init_machine(void)
 		platform_add_devices(platform_devs, ARRAY_SIZE(platform_devs));
 
 	#if defined(CONFIG_BACKLIGHT_KTD259)
-	if (system_rev >= GAVINI_R0_0_C)
+	if (system_rev >= GAVINI_R0_3)
+		platform_device_register(&gavini_backlight_device_r0_3);
+	else if (system_rev >= GAVINI_R0_0_C)
 		platform_device_register(&gavini_backlight_device);
 	#endif
 
@@ -2315,8 +2340,6 @@ __setup("debug=",sec_debug_setup);
  */
 static int __init board_id_setup(char *str)
 {
-	unsigned int board_id;
-
 	if (get_option(&str, &board_id) != 1)
 		board_id = 0;
 
@@ -2349,6 +2372,11 @@ static int __init board_id_setup(char *str)
 		printk(KERN_INFO "GAVINI Board Rev 0.1\n");
 		system_rev = GAVINI_R0_1;
 		break;
+	case 14:
+		printk(KERN_INFO "GAVINI Board Rev 0.1\n");
+		system_rev = GAVINI_R0_3;
+		break;
+
 	default:
 		printk(KERN_INFO "Unknown board_id=%c\n", *str);
 		break;

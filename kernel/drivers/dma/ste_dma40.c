@@ -5,6 +5,14 @@
  * License terms: GNU General Public License (GPL) version 2
  */
 
+#if defined(CONFIG_MACH_CODINA) || defined(CONFIG_MACH_GAVINI)
+#define MMC_HOST_DEBUGGING
+#endif
+
+#ifdef MMC_HOST_DEBUGGING
+#define CHANNEL_OF_CHOICE 0
+#endif
+
 #include <linux/kernel.h>
 #include <linux/dmaengine.h>
 #include <linux/platform_device.h>

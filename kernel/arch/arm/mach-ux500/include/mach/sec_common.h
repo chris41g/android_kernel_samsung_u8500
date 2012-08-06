@@ -54,7 +54,7 @@
 #define REBOOT_MODE_CP_CRASH		7
 
 
-#if defined(CONFIG_MACH_JANICE_CHN)
+#if defined(CONFIG_MACH_JANICE_CHN) || defined(CONFIG_MACH_GAVINI_CHN)
 extern u32 sec_lpm_bootmode;
 #endif
 

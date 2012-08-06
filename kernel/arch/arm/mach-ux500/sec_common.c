@@ -182,7 +182,8 @@ static __init int setup_boot_mode(char *opt)
 
 __setup("bootmode=", setup_boot_mode);
 
-#if defined(CONFIG_MACH_JANICE_CHN) || (CONFIG_MACH_GAVINI)
+#if defined(CONFIG_MACH_JANICE_CHN) || (CONFIG_MACH_GAVINI) \
+	 || (CONFIG_MACH_GAVINI_CHN)
 u32 sec_lpm_bootmode;
 EXPORT_SYMBOL(sec_lpm_bootmode);
 
@@ -209,6 +210,8 @@ static __init int setup_default_param(char *str)
 __setup("set_default_param=", setup_default_param);
 
 u32 sec_debug_enable;
+EXPORT_SYMBOL(sec_debug_enable);
+
 static __init int setup_sec_debug_enable(char *str)
 {
 	if (get_option(&str, &sec_debug_enable) != 1)
@@ -220,6 +223,8 @@ static __init int setup_sec_debug_enable(char *str)
 __setup("sec_debug.enable=", setup_sec_debug_enable);
 
 u32 sec_debug_enable_user;
+EXPORT_SYMBOL(sec_debug_enable_user);
+
 static __init int setup_sec_debug_enable_user(char *str)
 {
 	if (get_option(&str, &sec_debug_enable_user) != 1)

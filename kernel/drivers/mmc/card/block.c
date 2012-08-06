@@ -50,9 +50,9 @@ MODULE_ALIAS("mmc:block");
 #undef MODULE_PARAM_PREFIX
 #endif
 
-/*
+#ifdef CONFIG_MACH_CODINA
 #define MOVI_DEBUG
-*/
+#endif
 
 #ifdef MOVI_DEBUG
 typedef struct{

@@ -58,6 +58,9 @@ void prcmu_debug_ape_opp_log(u8 opp)
 	unsigned long flags;
 	int state;
 
+	if (opp == APE_50_PARTLY_25_OPP)
+		opp = APE_50_OPP;
+
 	if (opp == APE_50_OPP)
 		state = APE_50_OPP_DEBUG;
 	else

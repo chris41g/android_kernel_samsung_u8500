@@ -120,8 +120,8 @@ static struct variant_data variant_ux500 = {
 	.sdio			= true,
 	.st_clkdiv		= true,
 	.pwrreg_powerup		= MCI_PWR_ON,
-	.signal_direction	= true,
 	.non_power_of_2_blksize	= true,
+	.signal_direction	= true,
 };
 /*
  * Debugfs
@@ -482,6 +482,14 @@ mmci_start_command(struct mmci_host *host, struct mmc_command *cmd, u32 c)
 	if (/*interrupt*/0)
 		c |= MCI_CPSM_INTERRUPT;
 
+ /*
+ * For levelshifters we must not use more than 25MHz when
+ * sending commands.
+ */
+	host->cclk_desired = host->cclk;
+	if ((host->plat->sigdir & MMCI_ST_DIRFBCLK) && (host->cclk_desired > 25000000))
+		mmci_set_clkreg(host, 25000000);
+
 	host->cmd = cmd;
 
 	writel(cmd->arg, base + MMCIARGUMENT);
@@ -835,7 +843,7 @@ static void mmci_start_data(struct mmci_host *host, struct mmc_data *data)
 	void __iomem *base;
 	int blksz_bits;
 	u32 clk;
-  
+
 	dev_dbg(mmc_dev(host->mmc), "blksz %04x blks %04x flags %08x\n",
 		data->blksz, data->blocks, data->flags);
 
@@ -949,7 +957,7 @@ static void mmci_start_data(struct mmci_host *host, struct mmc_data *data)
 		 * data is available.
 		 */
 		if (host->size < variant->fifosize)
-		irqmask1 |= MCI_RXDATAAVLBLMASK;
+			irqmask1 |= MCI_RXDATAAVLBLMASK;
 	} else {
 		/*
 		 * We don't actually need to include "FIFO empty" here
@@ -959,17 +967,17 @@ static void mmci_start_data(struct mmci_host *host, struct mmc_data *data)
 	}
 
 	if (host->variant->sdio && host->mmc->card &&
-	   mmc_card_sdio(host->mmc->card)) {
-	   		int count=0;
+		mmc_card_sdio(host->mmc->card)) {
+			int count = 0;
 			while (readl(host->base + MMCISTATUS)&MCI_CARDBUSY) {
 				udelay(10);
 				if (++count > 50000) {
-					dev_err(mmc_dev(host->mmc),"Time out 500msec.\n");
+					dev_err(mmc_dev(host->mmc), "Time out 500msec.\n");
 					break;
 				}
 			}
 	}
-	
+
 	/* Setup IRQ */
 	irqmask0 = readl(base + MMCIMASK0);
 	if (variant->broken_blockend) {
@@ -1013,6 +1021,16 @@ mmci_data_irq(struct mmci_host *host, struct mmc_data *data,
 			data->error = -ECOMM;
 			printk(KERN_ERR"%s: [MMC] DATA STARTBIT STATUS: %x, CMD: %d\n",
 				mmc_hostname(host->mmc), status, cmd_print & 0x3F);
+#ifdef MMC_HOST_DEBUGGING
+				if (host->phybase == 0x80126000) {
+					printk(KERN_ERR" sdi0 data[0~3] pin configs : %d,%d,%d,%d,%d,%d,%d,%d\n",
+					nmk_gpio_get_mode(18), nmk_gpio_get_mode(19),
+					nmk_gpio_get_mode(20), nmk_gpio_get_mode(22),
+					nmk_gpio_get_mode(23), nmk_gpio_get_mode(24),
+					nmk_gpio_get_mode(25), nmk_gpio_get_mode(26),
+					nmk_gpio_get_mode(27), nmk_gpio_get_mode(28));
+				}
+#endif
 		} else if (status & (MCI_TXUNDERRUN|MCI_RXOVERRUN)) {
 			data->error = -EIO;
 			printk(KERN_ERR"%s: [MMC] DATA TX, RX STATUS: %x, CMD: %d\n",
@@ -1094,6 +1112,13 @@ mmci_cmd_irq(struct mmci_host *host, struct mmc_command *cmd,
 	cmd->resp[1] = readl(base + MMCIRESPONSE1);
 	cmd->resp[2] = readl(base + MMCIRESPONSE2);
 	cmd->resp[3] = readl(base + MMCIRESPONSE3);
+
+ /*
+ * For levelshifters we might have decreased cclk to 25MHz when
+ * sending commands, then we restore the frequency here.
+ */
+	if ((host->plat->sigdir & MMCI_ST_DIRFBCLK) && (host->cclk_desired > host->cclk))
+		mmci_set_clkreg(host, host->cclk_desired);
 
 	if (status & MCI_CMDTIMEOUT) {
 		cmd->error = -ETIMEDOUT;
@@ -1814,11 +1839,6 @@ static void mmci_abort_request(struct mmc_host *mmc)
 			"request already completed?\n");
 	}
 
-	/* Disable DMA, use PIO */
-	mmci_disable_dma(host);
-	dev_warn(mmc_dev(mmc), "Disabling DMA for this host\n");
-	host->dma_was_disabled = 1;
-
 	spin_unlock_irqrestore(&host->lock, flags);
 }
 
@@ -1871,8 +1891,6 @@ static int __devinit mmci_probe(struct amba_device *dev, struct amba_id *id)
 	host->pwr_reg = 0;
 	host->clk_reg = 0;
 
-	host->dma_was_disabled = 0;
-
 	host->hw_designer = amba_manf(dev);
 	host->hw_revision = amba_rev(dev);
 	dev_dbg(mmc_dev(mmc), "designer ID = 0x%02x\n", host->hw_designer);
@@ -1911,6 +1929,7 @@ static int __devinit mmci_probe(struct amba_device *dev, struct amba_id *id)
 		mmc->f_min = host->mclk / 257;
 	else
 		mmc->f_min = (host->mclk + 511) / 512;
+
 	/*
 	 * If the platform data supplies a maximum operating
 	 * frequency, this takes precedence. Else, we fall back
@@ -2237,10 +2256,6 @@ static int mmci_resume(struct amba_device *dev)
 			mmc_power_restore_host(mmc);
 			mmc_host_disable(mmc);
 		}
-
-		if (!host->dma_enable && host->dma_was_disabled)
-			mmci_setup_dma(host);
-		
 		/* Release the host to provide access to it again. */
 		mmc_do_release_host(mmc);
 	}

@@ -523,6 +523,7 @@ static unsigned long get_current_connection_mask(struct FSA9480_instance *instan
 
 	read_FSA9480_register(instance, FSA9490_INTERRUPT_1_REGISTER, &c);
 	printk(KERN_INFO "fsa_detect_dev: intr reg: 0x%x\n", c);
+
 	event |= (c&FSA9490_ATTACH_MASK_BIT) ? USB_SWITCH_CONNECTION_EVENT : 0;
 	event |= (c&FSA9490_DETACH_MASK_BIT) ? USB_SWITCH_DISCONNECTION_EVENT : 0;
 
@@ -530,26 +531,27 @@ static unsigned long get_current_connection_mask(struct FSA9480_instance *instan
 		if (instance->current_switch->valid_registers[FSA9490_INTERRUPT_2_REGISTER])
 			read_FSA9480_register(instance, FSA9490_INTERRUPT_2_REGISTER, &c);
 
-		read_FSA9480_register(instance, FSA9490_DEVICE_TYPE_1_REGISTER, &c);
-		c &= instance->current_switch->valid_device_register_1_bits;
-		for (i = 0; i < ARRAY_SIZE(device_1_register_bits); i++) {
-			if (c & device_1_register_bits[i].mask) {
-				event |= device_1_register_bits[i].event;
-				event_found = 1;
-				break;
-			}
-		}
-
-		if (!event_found) {
-			read_FSA9480_register(instance, FSA9490_DEVICE_TYPE_2_REGISTER, &c);
-			c &= instance->current_switch->valid_device_register_2_bits;
-			for (i = 0; i < ARRAY_SIZE(device_2_register_bits); i++) {
-				if (c & device_2_register_bits[i].mask) {
-					event |= device_2_register_bits[i].event;
+			read_FSA9480_register(instance, FSA9490_DEVICE_TYPE_1_REGISTER, &c);
+			c &= instance->current_switch->valid_device_register_1_bits;
+			for (i = 0; i < ARRAY_SIZE(device_1_register_bits); i++) {
+				if (c & device_1_register_bits[i].mask) {
+					event |= device_1_register_bits[i].event;
+					event_found = 1;
 					break;
 				}
 			}
-		}
+
+			if (!event_found) {
+				read_FSA9480_register(instance, FSA9490_DEVICE_TYPE_2_REGISTER, &c);
+				c &= instance->current_switch->valid_device_register_2_bits;
+				for (i = 0; i < ARRAY_SIZE(device_2_register_bits); i++) {
+					if (c & device_2_register_bits[i].mask) {
+						event |= device_2_register_bits[i].event;
+						break;
+					}
+				}
+			}
+			printk(KERN_INFO "fsa_device 1 or 2 reg : %#x\n", c);
 	}
 
 	return event ;
@@ -718,13 +720,14 @@ static irqreturn_t FSA9480_irq_thread_fn(int irq, void *data)
 	read_FSA9480_register(instance,
 				FSA9490_DEVICE_ID_REGISTER, &dev_id);
 	printk(KERN_INFO "%s: ID:%x = detect_dev run: FSA9485!\n",
-					__func__, dev_id);
+				__func__, dev_id);
+#ifndef CONFIG_MACH_GAVINI
 	if (dev_id == 0x00) {
 		printk(KERN_INFO "%s: ID:%x = detect_dev run: FSA9485!\n",
 					__func__, dev_id);
 		fsa_detect_dev(instance);
 	}
-
+#endif
 	printk(KERN_INFO "%s: get gpio_value:200 = %x\n",
 				__func__, gpio_get_value(200));
 	/* detect deskdock.
@@ -926,7 +929,9 @@ static int init_driver_instance(struct FSA9480_instance *instance, struct i2c_cl
 	blocking_notifier_call_chain(&usb_switch_notifier, USB_SWITCH_DRIVER_STARTED|instance->last_event, NULL);
 	instance->started = 1;
 
+#ifndef CONFIG_MACH_GAVINI
 	switch_dock_init();
+#endif
 	gpio_request(200, NULL);
 #if defined(FSA_DELAYED_WORK)
 	ret = request_threaded_irq(instance->irq_bit, NULL, FSA9480_irq_thread_fn,

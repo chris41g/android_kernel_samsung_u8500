@@ -18,7 +18,8 @@
 #define GAVINI_R0_0_A_EMUL 10
 #define GAVINI_R0_0_C	11	/* Rev0.0C */
 #define GAVINI_R0_0_D	12	/* Rev0.0D */
-#define GAVINI_R0_1	13	/* Rev0.1 */
+#define GAVINI_R0_1	13	/* Rev0.1 or Rev0.2 */
+#define GAVINI_R0_3	14	/* Rev0.3 */
 
 #define CODINA_R0_0	2
 #define CODINA_R0_1	3
@@ -233,6 +234,9 @@ extern unsigned int sec_debug_settings;
 
 /* GPIO for Gavini V0.1 boards */
 #define PRJ_LED_EN_GAVINI_R0_1		19
+
+/* GPIO for Gavini V0.3 boards */
+#define LCD_BL_CTRL_GAVINI_R0_3	20
 
 /* GPIO for Codina V0.0 boards */
 #define SENSOR_SDA_CODINA_R0_0	10

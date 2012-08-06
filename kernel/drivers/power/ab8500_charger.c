@@ -622,6 +622,7 @@ static int ab8500_charger_detect_chargers(struct ab8500_charger *di)
 		result = USB_PW_CONN ; 
 		break ;
 
+	case	EXTERNAL_JIG_USB_OFF:
 	case	EXTERNAL_USB:
 		wake_lock(&di->ab8500_vbus_wake_lock);
 		dev_info(di->dev,"USB is inserted\n");

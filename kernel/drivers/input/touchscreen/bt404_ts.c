@@ -99,12 +99,14 @@
 #define	BT404_RAW_DATA_ESD_TIMER_INTERVAL	1
 #define	TOUCH_TEST_RAW_MODE			51
 #define	TOUCH_NORMAL_MODE			48
-#define	TOUCH_BT404_BASELINED_RAW_MODE		3
-#define	TOUCH_BT404_PROCESSED_RAW_MODE		4
-#define	TOUCH_BT404_CAL_N_MODE			8
+#define	BT404_BASELINED_DATA			3
+#define	BT404_PROCESSED_DATA			4
+#define	BT404_CAL_N_DATA			7
+#define	BT404_CAL_N_COUNT			8
 
 /* Other Things  */
 #define	BT404_INIT_RETRY_CNT		3
+#define	BT404_INIT_RETRY_LIMIT		5
 #define	I2C_SUCCESS			0
 #define	INIT_RETRY_COUNT		2
 
@@ -211,9 +213,9 @@ static int m_ts_debug_mode = BT404_DEBUG;
 #define TSP_CMD_STR_LEN		32
 #define TSP_CMD_RESULT_STR_LEN	512
 #define TSP_CMD_PARAM_NUM	8
-#define TSP_CMD_X_NUM		17 /* touch key channel is excluded */
+#define TSP_CMD_X_NUM		18 /* touch key channel is excluded */
 #define TSP_CMD_Y_NUM		10
-#define TSP_CMD_NODE_NUM	170 /* 17x10 */
+#define TSP_CMD_NODE_NUM	180 /* 18x10 */
 #endif
 
 enum power_control {
@@ -333,9 +335,9 @@ struct bt404_ts_data {
 	char				cmd_buff[TSP_CMD_RESULT_STR_LEN];
 	struct mutex			cmd_lock;
 	bool				cmd_is_running;
-	u16				raw_reference[TSP_CMD_NODE_NUM];
-	u16				raw_scantime[TSP_CMD_NODE_NUM];
-	u16				raw_delta[TSP_CMD_NODE_NUM];
+	u16				raw_cal_n_data[TSP_CMD_NODE_NUM];
+	u16				raw_cal_n_count[TSP_CMD_NODE_NUM];
+	u16				raw_processed_data[TSP_CMD_NODE_NUM];
 #endif
 };
 
@@ -373,12 +375,12 @@ static void get_chip_vendor(void *device_data);
 static void get_chip_name(void *device_data);
 static void get_x_num(void *device_data);
 static void get_y_num(void *device_data);
-static void get_reference(void *device_data);
-static void get_scantime(void *device_data);
-static void get_delta(void *device_data);
-static void run_reference_read(void *device_data);
-static void run_scantime_read(void *device_data);
-static void run_delta_read(void *device_data);
+static void run_cal_n_data_read(void *device_data);
+static void run_cal_n_count_read(void *device_data);
+static void run_processed_data_read(void *device_data);
+static void get_cal_n_data(void *device_data);
+static void get_cal_n_count(void *device_data);
+static void get_processed_data(void *device_data);
 static void not_support_cmd(void *device_data);
 
 struct tsp_cmd tsp_cmds[] = {
@@ -395,12 +397,12 @@ struct tsp_cmd tsp_cmds[] = {
 	{TSP_CMD("get_chip_name", get_chip_name),},
 	{TSP_CMD("get_x_num", get_x_num),},
 	{TSP_CMD("get_y_num", get_y_num),},
-	{TSP_CMD("get_reference", get_reference),},
-	{TSP_CMD("get_scantime", get_scantime),},
-	{TSP_CMD("get_delta", get_delta),},
-	{TSP_CMD("run_reference_read", run_reference_read),},
-	{TSP_CMD("run_scantime_read", run_scantime_read),},
-	{TSP_CMD("run_delta_read", run_delta_read),},
+	{TSP_CMD("run_cal_n_data_read", run_cal_n_data_read),},
+	{TSP_CMD("run_cal_n_count_read", run_cal_n_count_read),},
+	{TSP_CMD("run_processed_data_read", run_processed_data_read),},
+	{TSP_CMD("get_cal_n_data", get_cal_n_data),},
+	{TSP_CMD("get_cal_n_count", get_cal_n_count),},
+	{TSP_CMD("get_processed_data", get_processed_data),},
 	{TSP_CMD("not_support_cmd", not_support_cmd),},
 };
 #endif
@@ -617,7 +619,7 @@ static bool ts_get_raw_data(struct bt404_ts_data *data)
 		debug_msg("read raw data\n");
 		sz = total_node * 2 + sizeof(struct _ts_zinitix_point_info);
 
-		if (data->raw_mode_flag == TOUCH_BT404_CAL_N_MODE) {
+		if (data->raw_mode_flag == BT404_CAL_N_COUNT) {
 			int total_cal_n = data->cap_info.total_cal_n;
 			if (total_cal_n == 0)
 				total_cal_n = 160;
@@ -698,10 +700,17 @@ bool bt404_check_fw_update(struct bt404_ts_data *data)
 	dev_info(&data->client->dev,
 		"fw ver: cur= 0x%X, new= 0x%X\n", ver_ic, ver_new);
 
+	if (ver_ic != 0x86 && ver_ic != 0x88) {
+		dev_err(&data->client->dev, "%s: invalid fw version."
+						"force update.\n", __func__);
+		return true;
+	}
+
 	if (ver_ic < ver_new)
 		return true;
 	else if (ver_ic > ver_new)
 		return false;
+
 
 	ver_ic = 0xffff;
 	ret = bt404_ts_read_data(data->client, BT404_REG_VER,
@@ -713,7 +722,7 @@ bool bt404_check_fw_update(struct bt404_ts_data *data)
 	}
 
 	ver_new = (u16)(data->fw_data[FW_VER_OFFSET + 2]
-		| (data->fw_data[FW_VER_OFFSET + 3] << 8));
+				| (data->fw_data[FW_VER_OFFSET + 3] << 8));
 	if (ver_new == 0xFFFF) {
 		dev_err(&data->client->dev, "invalid reg version\n");
 		return false;
@@ -735,8 +744,12 @@ u8 bt404_ts_fw_update(struct bt404_ts_data *data, const u8 *_fw_data)
 	u8 *verify_data;
 	int ret;
 	int i;
+	unsigned short slave_addr_backup;
 	int retries = 3;
 	u32 size = data->cap_info.fw_len;
+	struct i2c_adapter *adapter = to_i2c_adapter(data->client->dev.parent);
+	struct i2c_adapter *isp_adapter =
+				to_i2c_adapter(data->isp_client->dev.parent);
 
 	verify_data = kzalloc(size, GFP_KERNEL);
 	if (!verify_data) {
@@ -744,21 +757,25 @@ u8 bt404_ts_fw_update(struct bt404_ts_data *data, const u8 *_fw_data)
 		return false;
 	}
 
+	slave_addr_backup = data->client->addr;
+
 retry_isp_firmware_upgrade:
 
 	bt404_ts_power(data, POWER_OFF);
 	msleep(1000);
 	bt404_ts_power(data, POWER_ON);
-	msleep(1);	/* under 4ms*/
+	mdelay(1);	/* under 4ms*/
 
 	dev_info(&data->client->dev, "flashing firmware (size=%d)\n", size);
+
+	data->client->addr = data->isp_client->addr;
 
 	for (i = 0; i < size; i += TC_PAGE_SZ) {
 		i2c_buffer[0] = (i >> 8) & 0xff;	/*addr_h*/
 		i2c_buffer[1] = (i) & 0xff;		/*addr_l*/
 
 		memcpy(&i2c_buffer[2], &_fw_data[i], TC_PAGE_SZ);
-		ret = ts_write_firmware_data(data->isp_client, i2c_buffer,
+		ret = ts_write_firmware_data(data->client, i2c_buffer,
 				TC_PAGE_SZ + 2);
 		if (ret < 0) {
 			dev_err(&data->client->dev,
@@ -769,7 +786,13 @@ retry_isp_firmware_upgrade:
 	}
 	msleep(CHIP_POWER_OFF_AF_FZ_DELAY);
 
+	data->client->addr = slave_addr_backup;
+
 	dev_info(&data->client->dev, "verifing firmware\n");
+
+	i2c_lock_adapter(adapter);
+	i2c_unlock_adapter(isp_adapter);
+	data->pdata->pin_configure(true);
 
 	i2c_buffer[0] = i2c_buffer[1] = 0;
 
@@ -792,6 +815,10 @@ retry_isp_firmware_upgrade:
 
 	msleep(20);
 
+	data->pdata->pin_configure(false);
+	i2c_lock_adapter(isp_adapter);
+	i2c_unlock_adapter(adapter);
+
 	mdelay(CHIP_POWER_OFF_AF_FZ_DELAY);
 	bt404_ts_power(data, POWER_OFF);
 	mdelay(CHIP_POWER_OFF_AF_FZ_DELAY);
@@ -804,11 +831,18 @@ retry_isp_firmware_upgrade:
 	return true;
 
 fail_upgrade:
+
+	data->client->addr = slave_addr_backup;
+
 	mdelay(CHIP_POWER_OFF_AF_FZ_DELAY);
 	bt404_ts_power(data, POWER_OFF);
 	mdelay(CHIP_POWER_OFF_AF_FZ_DELAY);
 	bt404_ts_power(data, POWER_ON);
 	mdelay(CHIP_ON_AF_FZ_DELAY);
+
+	data->pdata->pin_configure(false);
+	i2c_lock_adapter(isp_adapter);
+	i2c_unlock_adapter(adapter);
 
 	dev_err(&data->client->dev, "failure: %d retrial is left\n",
 								--retries);
@@ -865,6 +899,16 @@ static bool bt404_ts_init_device(struct bt404_ts_data *data, bool force_update)
 	int retry_cnt = 0;
 	int ret;
 
+	reg_val = 0;
+	reg_val |= 1 << BIT_PT_CNT_CHANGE;
+	reg_val |= 1 << BIT_DOWN;
+	reg_val |= 1 << BIT_MOVE;
+	reg_val |= 1 << BIT_UP;
+	if (data->pdata->num_buttons > 0)
+		reg_val |= 1 << BIT_ICON_EVENT;
+
+	data->cap_info.chip_int_mask = reg_val;
+
 retry_init:
 	ret = bt404_ts_sw_reset(data);
 	if (!ret) {
@@ -886,16 +930,6 @@ retry_init:
 	}
 	dev_info(dev, "fw state checked(0x%X, 0x%X)\n", fw_state[0],
 								fw_state[1]);
-
-	reg_val = 0;
-	reg_val |= 1 << BIT_PT_CNT_CHANGE;
-	reg_val |= 1 << BIT_DOWN;
-	reg_val |= 1 << BIT_MOVE;
-	reg_val |= 1 << BIT_UP;
-	if (data->pdata->num_buttons > 0)
-		reg_val |= 1 << BIT_ICON_EVENT;
-
-	data->cap_info.chip_int_mask = reg_val;
 
 	ret = bt404_ts_write_reg(client, BT404_INT_ENABLE_FLAG, 0x0);
 	if (ret < 0) {
@@ -927,7 +961,7 @@ fw_update:
 	dev_info(dev, "work_state = %d\n", data->work_state);
 	ret = (int)bt404_check_fw_update(data);
 
-	if (ret || (retry_cnt > 5) || force_update) {
+	if (ret || (retry_cnt >= BT404_INIT_RETRY_CNT) || force_update) {
 		bt404_ts_fw_update(data, &data->fw_data[2]);
 
 		/* get chip revision id */
@@ -1023,7 +1057,7 @@ fw_update:
 			dev_err(dev, "%s: err: wt reg (int en)\n", __func__);
 			goto fail_init;
 		}
-	
+
 		ret = bt404_ts_write_reg(client, BT404_TOUCH_MODE, 0x07);
 		if (ret < 0) {
 			dev_err(dev, "%s: err: wt reg (touch mode)\n",
@@ -1254,7 +1288,7 @@ fw_update:
 
 fail_init:
 	retry_cnt++;
-	if (retry_cnt <= BT404_INIT_RETRY_CNT) {
+	if (retry_cnt < BT404_INIT_RETRY_CNT) {
 		mdelay(CHIP_POWER_OFF_DELAY);
 		bt404_ts_power(data, POWER_OFF);
 		mdelay(CHIP_POWER_OFF_DELAY);
@@ -1264,14 +1298,9 @@ fail_init:
 								retry_cnt);
 		goto retry_init;
 	} else {
-		mdelay(CHIP_POWER_OFF_DELAY);
-		bt404_ts_power(data, POWER_OFF);	/* power off */
-		mdelay(CHIP_POWER_OFF_DELAY);
-		bt404_ts_power(data, POWER_ON);		/* power on */
-		mdelay(CHIP_ON_DELAY);
 		dev_err(dev, "retry init (cnt = %d)\n", retry_cnt);
 
-		if (retry_cnt > 5) {
+		if (retry_cnt > BT404_INIT_RETRY_LIMIT) {
 			dev_err(dev, "failed to force upgrade (%d)\n",
 								retry_cnt);
 			return false;
@@ -1333,10 +1362,12 @@ static void bt404_ts_report_touch_data(struct bt404_ts_data *data,
 
 		}
 report:
+
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 		if (cur_down || cur_up)
 			dev_info(&client->dev, "%4s[%1d]: %3d,%3d (%3d)\n",
 					(w) ? "down" : "up", i, x, y, w);
-
+#endif
 		input_report_abs(data->input_dev_ts, ABS_MT_TRACKING_ID, i);
 		input_report_abs(data->input_dev_ts, ABS_MT_POSITION_X, x);
 		input_report_abs(data->input_dev_ts, ABS_MT_POSITION_Y, y);
@@ -1408,6 +1439,10 @@ static irqreturn_t bt404_ts_interrupt(int irq, void *dev_id)
 								__func__);
 			goto out;
 		}
+		ret = bt404_ts_write_cmd(client, BT404_CLEAR_INT_STATUS_CMD);
+		if (ret < 0)
+			dev_err(&client->dev, "%s: err: cmd (clr int)\n",
+								 __func__);
 
 		offset = 0;
 		if ((val >> (offset + 8)) & 0x1) {
@@ -1421,10 +1456,11 @@ static irqreturn_t bt404_ts_interrupt(int irq, void *dev_id)
 		if (need_report) {
 			input_report_key(data->input_dev_tk,
 				data->pdata->button_map[offset], action);
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 			dev_info(&client->dev, "key[%3d]:%s\n",
 						data->pdata->button_map[offset],
 						(action) ? "down" : "up");
-
+#endif
 		}
 
 		need_report = false;
@@ -1441,9 +1477,11 @@ static irqreturn_t bt404_ts_interrupt(int irq, void *dev_id)
 		if (need_report) {
 			input_report_key(data->input_dev_tk,
 				data->pdata->button_map[offset], action);
+#if !defined(CONFIG_SAMSUNG_PRODUCT_SHIP)
 			dev_info(&client->dev, "key[%3d]:%s\n",
 						data->pdata->button_map[offset],
 						(action) ? "down" : "up");
+#endif
 		}
 
 		data->reported_key_val = val;
@@ -1464,6 +1502,11 @@ static irqreturn_t bt404_ts_interrupt(int irq, void *dev_id)
 			goto out;
 		}
 
+		ret = bt404_ts_write_cmd(client, BT404_CLEAR_INT_STATUS_CMD);
+		if (ret < 0)
+			dev_err(&client->dev, "%s: err: cmd (clr int)\n",
+								__func__);
+
 #ifdef TSP_VERBOSE_DEBUG
 		for (i = 0; i < data->cap_info.max_finger; i++) {
 			u8 sub_status = data->touch_info.coord[i].sub_status;
@@ -1481,8 +1524,17 @@ static irqreturn_t bt404_ts_interrupt(int irq, void *dev_id)
 		memcpy((char *)&data->reported_touch_info,
 					(char *)&data->touch_info,
 					sizeof(struct _ts_zinitix_point_info));
+	} else {
+		dev_err(&client->dev, "%s: invalid status (0x%X)\n", __func__,
+									status);
+		goto out;
 	}
 
+	if (data->work_state == NORMAL)
+		data->work_state = NOTHING;
+
+	up(&data->work_lock);
+	return IRQ_HANDLED;
 
 out:
 	ret = bt404_ts_write_cmd(client, BT404_CLEAR_INT_STATUS_CMD);
@@ -2170,7 +2222,7 @@ fail_hw_cal2:
 		misc_data->update = 0;
 
 		u8Data = (u8 *)&misc_data->cur_data[0];
-		if (misc_data->raw_mode_flag == TOUCH_BT404_CAL_N_MODE) {
+		if (misc_data->raw_mode_flag == BT404_CAL_N_COUNT) {
 
 			j = 0;
 			total_cal_n =
@@ -2394,7 +2446,7 @@ static ssize_t cmd_store(struct device *dev, struct device_attribute *devattr,
 				memcpy(buff, start, end - start);
 				*(buff + strlen(buff)) = '\0';
 				data->cmd_param[param_cnt] =
-					(int)simple_strtoul(buff, NULL, 10);
+					(int)simple_strtol(buff, NULL, 10);
 				start = cur + 1;
 				memset(buff, 0x00, ARRAY_SIZE(buff));
 				param_cnt++;
@@ -2524,7 +2576,7 @@ static void get_fw_ver_bin(void *device_data)
 	set_default_result(data);
 
 	buff = (u16)(data->fw_data[FW_VER_OFFSET + 2]
-					| (data->fw_data[FW_VER_OFFSET + 3] << 8));
+				| (data->fw_data[FW_VER_OFFSET + 3] << 8));
 
 	sprintf(data->cmd_buff, "0x%X", buff);
 	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
@@ -2728,6 +2780,7 @@ static void get_x_num(void *device_data)
 		goto out;
 	}
 
+	buff = buff - 1; /* the lastest tx channel is used for touchkey*/
 	sprintf(data->cmd_buff, "%d", buff);
 	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
 	data->cmd_state = 2;
@@ -2781,142 +2834,17 @@ out:
 	return ;
 }
 
-static void get_reference(void *device_data)
+static int bt404_ts_read_raw_datas(struct bt404_ts_data *data, u16 type)
 {
-	struct bt404_ts_data *data = (struct bt404_ts_data *)device_data;
-	struct i2c_client *client = data->client;
-	int idx;
-	int x = data->cmd_param[0];
-	int y = data->cmd_param[1];
-
-	set_default_result(data);
-
-	if (x < 0 || x >= TSP_CMD_X_NUM || y < 0 || y >= TSP_CMD_Y_NUM)
-		goto out;
-
-	idx = x * TSP_CMD_Y_NUM + y;
-
-	sprintf(data->cmd_buff, "%d", data->raw_reference[idx]);
-	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
-	data->cmd_state = 2;
-
-	dev_info(&client->dev, "%s: \"%s\"(%d)\n", __func__,
-				data->cmd_buff,	strlen(data->cmd_buff));
-
-	return;
-
-out:
-	sprintf(data->cmd_buff, "%s", "NG");
-	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
-	data->cmd_state = 3;
-
-	dev_info(&client->dev, "%s: fail to read reference\n", __func__);
-	return ;
-}
-
-static void get_scantime(void *device_data)
-{
-	struct bt404_ts_data *data = (struct bt404_ts_data *)device_data;
-	struct i2c_client *client = data->client;
-	int idx;
-	int x = data->cmd_param[0];
-	int y = data->cmd_param[1];
-
-	set_default_result(data);
-
-	if (x < 0 || x >= TSP_CMD_X_NUM || y < 0 || y >= TSP_CMD_Y_NUM)
-		goto out;
-
-	idx = x * TSP_CMD_Y_NUM + y;
-
-	sprintf(data->cmd_buff, "%d", data->raw_scantime[idx]);
-	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
-	data->cmd_state = 2;
-
-	dev_info(&client->dev, "%s: \"%s\"(%d)\n", __func__,
-				data->cmd_buff,	strlen(data->cmd_buff));
-
-	return;
-
-out:
-	sprintf(data->cmd_buff, "%s", "NG");
-	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
-	data->cmd_state = 3;
-
-	dev_info(&client->dev, "%s: fail to read scantime\n", __func__);
-	return ;
-}
-
-static void get_delta(void *device_data)
-{
-	struct bt404_ts_data *data = (struct bt404_ts_data *)device_data;
-	struct i2c_client *client = data->client;
-
-	int idx;
-	int x = data->cmd_param[0];
-	int y = data->cmd_param[1];
-
-	set_default_result(data);
-
-	if (x < 0 || x >= TSP_CMD_X_NUM || y < 0 || y >= TSP_CMD_Y_NUM)
-		goto out;
-
-	idx = x * TSP_CMD_Y_NUM + y;
-
-	sprintf(data->cmd_buff, "%d", data->raw_delta[idx]);
-	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
-	data->cmd_state = 2;
-
-	dev_info(&client->dev, "%s: \"%s\"(%d)\n", __func__,
-				data->cmd_buff,	strlen(data->cmd_buff));
-
-	return;
-
-out:
-	sprintf(data->cmd_buff, "%s", "NG");
-	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
-	data->cmd_state = 3;
-
-	dev_info(&client->dev, "%s: fail to read delta\n", __func__);
-	return ;
-}
-
-static void run_reference_read(void *device_data)
-{
-	struct bt404_ts_data *data = (struct bt404_ts_data *)device_data;
-	struct i2c_client *client = data->client;
-	int i;
-
-	set_default_result(data);
-
-	for (i = 0; i < TSP_CMD_NODE_NUM; i++)
-		data->raw_reference[i] = (u16)0;
-
-	sprintf(data->cmd_buff, "%s", "OK");
-	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
-	data->cmd_state = 2;
-
-	dev_info(&client->dev, "%s: \"%s\"(%d)\n", __func__,
-				data->cmd_buff,	strlen(data->cmd_buff));
-
-	return;
-}
-
-static void run_scantime_read(void *device_data)
-{
-	struct bt404_ts_data *data = (struct bt404_ts_data *)device_data;
 	struct i2c_client *client = data->client;
 	int i, j;
 	int ret;
 	u16 old_mode;
 	u8 *cur;
+	int num;
 	u16 buf[TSP_CMD_NODE_NUM] = {0, };
-	set_default_result(data);
 
-	disable_irq(data->irq);
-	down(&data->work_lock);
-
-	memset(data->raw_scantime, 0x0000, ARRAY_SIZE(data->raw_scantime));
+/* raw data type checking */
 
 	ret = bt404_ts_read_data(client, BT404_TOUCH_MODE, (u8 *)&old_mode, 2);
 	if (ret < 0) {
@@ -2925,7 +2853,7 @@ static void run_scantime_read(void *device_data)
 	}
 
 	ret = bt404_ts_write_reg(client, BT404_TOUCH_MODE,
-						TOUCH_BT404_CAL_N_MODE);
+						type);
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: err: wt reg (touch mode)\n",
 							__func__);
@@ -2937,128 +2865,39 @@ static void run_scantime_read(void *device_data)
 		msleep(100);
 	}
 
-	while (1) {
+	while (true) {
 		if (!gpio_get_value(data->pdata->gpio_int))
 			break;
 		msleep(1);
 	}
 
-	ret = bt404_ts_read_data(client, BT404_MAX_Y_NUM,
+	if (type == BT404_CAL_N_COUNT) {
+		ret = bt404_ts_read_data(client, BT404_MAX_Y_NUM,
 					(u8 *)&data->cap_info.max_y_node, 2);
-	if (ret < 0) {
-		dev_err(&client->dev, "%s: err: rd (max y node)\n", __func__);
-		goto out;
-	}
-	dev_info(&client->dev, "%s: max_y_node=%d\n", __func__,
+		if (ret < 0) {
+			dev_err(&client->dev, "%s: err: rd (max y node)\n",
+								__func__);
+			goto out;
+		}
+		dev_info(&client->dev, "%s: max_y_node=%d\n", __func__,
 						data->cap_info.max_y_node);
 
-	ret = bt404_ts_read_data(client, BT404_CAL_N_TOTAL_NUM,
+		ret = bt404_ts_read_data(client, BT404_CAL_N_TOTAL_NUM,
 					(u8 *)&data->cap_info.total_cal_n, 2);
-	if (ret < 0) {
-		dev_err(&client->dev, "%s: err: rd (max y node)\n", __func__);
-		goto out;
-	}
-	dev_info(&client->dev, "%s: total_cal_n=%d\n", __func__,
-						data->cap_info.total_cal_n);
-
-	ret = bt404_ts_read_raw_data(data->client, BT404_RAWDATA_REG,
-		(char *)buf, sizeof(buf[0]) * data->cap_info.total_cal_n);
-	if (ret < 0) {
-		dev_err(&client->dev, "%s: err: rd (buf data)\n", __func__);
-		goto out;
-	}
-
-	ret = bt404_ts_write_reg(client, BT404_TOUCH_MODE, old_mode);
-	if (ret < 0) {
-		dev_err(&client->dev, "%s: err: wt reg (touch mode)\n",
+		if (ret < 0) {
+			dev_err(&client->dev, "%s: err: rd (max y node)\n",
 								__func__);
-		goto out;
-	}
-
-	for (i = 0; i < 3; i++) {
-		bt404_ts_write_cmd(client, BT404_CLEAR_INT_STATUS_CMD);
-		msleep(100);
-	}
-
-	j = 0;
-	cur = (u8 *)&buf[0];
-	for (i = 0; i < data->cap_info.total_cal_n; i++) {
-		if ((i * 2) % data->cap_info.max_y_node < TSP_CMD_Y_NUM) {
-			data->raw_scantime[j++] = (u16)cur[i * 2];
-			data->raw_scantime[j++] = (u16)cur[i * 2 + 1];
-			msleep(1);
-			if (j >= TSP_CMD_NODE_NUM)
-				break;
+			goto out;
 		}
+		dev_info(&client->dev, "%s: total_cal_n=%d\n", __func__,
+						data->cap_info.total_cal_n);
 	}
 
-	up(&data->work_lock);
-	enable_irq(data->irq);
-
-	sprintf(data->cmd_buff, "%s", "OK");
-	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
-	data->cmd_state = 2;
-
-	dev_info(&client->dev, "%s: \"%s\"(%d)\n", __func__,
-				data->cmd_buff,	strlen(data->cmd_buff));
-
-	return;
-
-out:
-	up(&data->work_lock);
-	sprintf(data->cmd_buff, "%s", "NG");
-	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
-	data->cmd_state = 3;
-
-	dev_info(&client->dev, "%s: fail to read scantime from IC\n", __func__);
-	return ;
-}
-
-static void run_delta_read(void *device_data)
-{
-	struct bt404_ts_data *data = (struct bt404_ts_data *)device_data;
-	struct i2c_client *client = data->client;
-	int i, j;
-	int ret;
-	u16 old_mode;
-
-	set_default_result(data);
-
-	disable_irq(data->irq);
-	down(&data->work_lock);
-
-	memset(data->raw_delta, 0x00,
-				sizeof(data->raw_delta[0]) * TSP_CMD_NODE_NUM);
-
-	ret = bt404_ts_read_data(client, BT404_TOUCH_MODE, (u8 *)&old_mode, 2);
-	if (ret < 0) {
-		dev_err(&client->dev, "%s: err: rd (touch mode)\n", __func__);
-		goto out;
-	}
-
-	ret = bt404_ts_write_reg(client, BT404_TOUCH_MODE,
-						TOUCH_BT404_PROCESSED_RAW_MODE);
-	if (ret < 0) {
-		dev_err(&client->dev, "%s: err: wt reg (touch mode)\n",
-							__func__);
-		goto out;
-	}
-
-	for (i = 0; i < 3; i++) {
-		bt404_ts_write_cmd(client, BT404_CLEAR_INT_STATUS_CMD);
-		msleep(100);
-	}
-
-	while (1) {
-		;
-		if (!gpio_get_value(data->pdata->gpio_int))
-			break;
-		msleep(1);
-	}
+	num = (type == BT404_CAL_N_COUNT) ?
+				data->cap_info.total_cal_n : TSP_CMD_NODE_NUM;
 
 	ret = bt404_ts_read_raw_data(data->client, BT404_RAWDATA_REG,
-				(char *)data->raw_delta,
-				sizeof(data->raw_delta[0]) * TSP_CMD_NODE_NUM);
+					(char *)buf, sizeof(buf[0]) * num);
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: err: rd (raw data)\n", __func__);
 		goto out;
@@ -3075,34 +2914,341 @@ static void run_delta_read(void *device_data)
 		bt404_ts_write_cmd(client, BT404_CLEAR_INT_STATUS_CMD);
 		msleep(100);
 	}
-/*
-	for (i = 0; i < TSP_CMD_X_NUM; i++) {
-		for (j = 0; j < TSP_CMD_Y_NUM; j++) {
-			dev_info(&client->dev, "%2d,%2d: %d\n", i, j,
-					data->raw_delta[i * TSP_CMD_Y_NUM + j]);
-			msleep(1);
+
+	if (type == BT404_CAL_N_COUNT) {
+		j = 0;
+		cur = (u8 *)&buf[0];
+		for (i = 0; i < data->cap_info.total_cal_n; i++) {
+			if ((i * 2) % data->cap_info.max_y_node <
+							TSP_CMD_Y_NUM) {
+				data->raw_cal_n_count[j++] = (u16)cur[i * 2];
+				data->raw_cal_n_count[j++] =
+							(u16)cur[i * 2 + 1];
+				msleep(1);
+				if (j >= TSP_CMD_NODE_NUM)
+					break;
+			}
+		}
+	} else {
+		for (i = 0; i < num; i++) {
+			switch (type) {
+			case BT404_PROCESSED_DATA:
+				data->raw_processed_data[i] = buf[i];
+				break;
+			case BT404_CAL_N_DATA:
+				data->raw_cal_n_data[i] = buf[i];
+				break;
+			default:
+				dev_err(&client->dev,
+					"%s: not proper raw data type (%d)\n",
+						__func__, type);
+				ret = EINVAL;
+				goto out;
+			}
 		}
 	}
+
+	ret = 0;
+
+	dev_info(&client->dev, "%s: raw data (%d) is sucessfully readed\n",
+						__func__, type);
+out:
+	return ret;
+}
+
+static void get_cal_n_data(void *device_data)
+{
+	struct bt404_ts_data *data = (struct bt404_ts_data *)device_data;
+	struct i2c_client *client = data->client;
+	int idx;
+	int x = data->cmd_param[0];
+	int y = data->cmd_param[1];
+
+	set_default_result(data);
+
+	if (x < 0 || x >= TSP_CMD_X_NUM || y < 0 || y >= TSP_CMD_Y_NUM)
+		goto out;
+
+	idx = x * TSP_CMD_Y_NUM + y;
+
+	sprintf(data->cmd_buff, "%d", data->raw_cal_n_data[idx]);
+	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
+	data->cmd_state = 2;
+
+	dev_info(&client->dev, "%s: \"%s\"(%d),(%d,%d)\n", __func__,
+				data->cmd_buff,	strlen(data->cmd_buff), x, y);
+
+	return;
+
+out:
+	sprintf(data->cmd_buff, "%s", "NG");
+	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
+	data->cmd_state = 3;
+
+	dev_info(&client->dev, "%s: fail to read raw_cal_n_data\n", __func__);
+	return ;
+}
+
+static void get_cal_n_count(void *device_data)
+{
+	struct bt404_ts_data *data = (struct bt404_ts_data *)device_data;
+	struct i2c_client *client = data->client;
+	int idx;
+	int x = data->cmd_param[0];
+	int y = data->cmd_param[1];
+
+	set_default_result(data);
+
+	if (x < 0 || x >= TSP_CMD_X_NUM || y < 0 || y >= TSP_CMD_Y_NUM)
+		goto out;
+
+	idx = x * TSP_CMD_Y_NUM + y;
+
+	sprintf(data->cmd_buff, "%d", data->raw_cal_n_count[idx]);
+	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
+	data->cmd_state = 2;
+
+	dev_info(&client->dev, "%s: \"%s\"(%d),(%d,%d)\n", __func__,
+				data->cmd_buff,	strlen(data->cmd_buff), x, y);
+
+	return;
+
+out:
+	sprintf(data->cmd_buff, "%s", "NG");
+	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
+	data->cmd_state = 3;
+
+	dev_info(&client->dev, "%s: fail to read raw_cal_n_count\n", __func__);
+	return ;
+}
+
+static void get_processed_data(void *device_data)
+{
+	struct bt404_ts_data *data = (struct bt404_ts_data *)device_data;
+	struct i2c_client *client = data->client;
+
+	int idx;
+	int x = data->cmd_param[0];
+	int y = data->cmd_param[1];
+
+	set_default_result(data);
+
+	if (x < 0 || x >= TSP_CMD_X_NUM || y < 0 || y >= TSP_CMD_Y_NUM)
+		goto out;
+
+	idx = x * TSP_CMD_Y_NUM + y;
+
+	sprintf(data->cmd_buff, "%d", data->raw_processed_data[idx]);
+	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
+	data->cmd_state = 2;
+
+	dev_info(&client->dev, "%s: \"%s\"(%d),(%d,%d)\n", __func__,
+				data->cmd_buff,	strlen(data->cmd_buff), x, y);
+
+	return;
+
+out:
+	sprintf(data->cmd_buff, "%s", "NG");
+	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
+	data->cmd_state = 3;
+
+	dev_info(&client->dev, "%s: fail to read raw_processed_data\n",
+								__func__);
+	return ;
+}
+
+static void run_cal_n_data_read(void *device_data)
+{
+	struct bt404_ts_data *data = (struct bt404_ts_data *)device_data;
+	struct i2c_client *client = data->client;
+	int i, j;
+	int ret;
+	int raw_min, raw_max;
+	u16 raw_data;
+
+	set_default_result(data);
+
+	disable_irq(data->irq);
+	down(&data->work_lock);
+
+	memset(data->raw_cal_n_data, 0x00, sizeof(data->raw_cal_n_data[0]) *
+					ARRAY_SIZE(data->raw_cal_n_data));
+
+	ret = bt404_ts_read_raw_datas(data, BT404_CAL_N_DATA);
+	if (ret < 0)
+		goto err;
+
+	raw_min = raw_max = data->raw_cal_n_data[0];
+
+	for (i = 0; i < TSP_CMD_X_NUM; i++) {
+		for (j = 0; j < TSP_CMD_Y_NUM; j++) {
+
+			raw_data = data->raw_cal_n_data[i * TSP_CMD_Y_NUM + j];
+/*
+			dev_info(&client->dev, "%2d,%2d: %d\n", i, j, raw_data);
+			msleep(1);
 */
+			if (i < TSP_CMD_X_NUM - 1) {
+				if (raw_max < raw_data)
+					raw_max = raw_data;
+
+				if (raw_min > raw_data)
+					raw_min = raw_data;
+			}
+		}
+	}
+
 	up(&data->work_lock);
 	enable_irq(data->irq);
 
-	sprintf(data->cmd_buff, "%s", "OK");
+	sprintf(data->cmd_buff, "%d,%d", raw_min, raw_max);
 	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
-	data->cmd_state = 2;
+	data->cmd_state = OK;
 
 	dev_info(&client->dev, "%s: \"%s\"(%d)\n", __func__,
 				data->cmd_buff,	strlen(data->cmd_buff));
 
 	return;
-
-out:
+err:
 	up(&data->work_lock);
+	enable_irq(data->irq);
+
 	sprintf(data->cmd_buff, "%s", "NG");
 	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
-	data->cmd_state = 3;
+	data->cmd_state = FAIL;
 
-	dev_info(&client->dev, "%s: fail to read delta from IC\n", __func__);
+	dev_err(&client->dev, "%s: fail to read can_n_data\n", __func__);
+	return ;
+}
+
+static void run_cal_n_count_read(void *device_data)
+{
+	struct bt404_ts_data *data = (struct bt404_ts_data *)device_data;
+	struct i2c_client *client = data->client;
+	int i, j;
+	int ret;
+	int raw_min, raw_max;
+	u16 raw_data;
+
+	set_default_result(data);
+
+	disable_irq(data->irq);
+	down(&data->work_lock);
+
+	memset(data->raw_cal_n_count, 0x00, sizeof(data->raw_cal_n_count[0]) *
+					ARRAY_SIZE(data->raw_cal_n_count));
+
+	ret = bt404_ts_read_raw_datas(data, BT404_CAL_N_COUNT);
+	if (ret < 0)
+		goto err;
+
+	raw_min = raw_max = data->raw_cal_n_count[0];
+
+	for (i = 0; i < TSP_CMD_X_NUM; i++) {
+		for (j = 0; j < TSP_CMD_Y_NUM; j++) {
+
+			raw_data = data->raw_cal_n_count[i * TSP_CMD_Y_NUM + j];
+/*
+			dev_info(&client->dev, "%2d,%2d: %d\n", i, j, raw_data);
+			msleep(1);
+*/
+			if (i < TSP_CMD_X_NUM - 1) {
+				if (raw_max < raw_data)
+					raw_max = raw_data;
+
+				if (raw_min > raw_data)
+					raw_min = raw_data;
+			}
+		}
+	}
+
+	up(&data->work_lock);
+	enable_irq(data->irq);
+
+	sprintf(data->cmd_buff, "%d,%d", raw_min, raw_max);
+	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
+	data->cmd_state = OK;
+
+	dev_info(&client->dev, "%s: \"%s\"(%d)\n", __func__,
+				data->cmd_buff,	strlen(data->cmd_buff));
+
+	return;
+err:
+	up(&data->work_lock);
+	enable_irq(data->irq);
+
+	sprintf(data->cmd_buff, "%s", "NG");
+	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
+	data->cmd_state = FAIL;
+
+	dev_err(&client->dev, "%s: fail to read can_n_count\n", __func__);
+	return ;
+}
+
+static void run_processed_data_read(void *device_data)
+{
+	struct bt404_ts_data *data = (struct bt404_ts_data *)device_data;
+	struct i2c_client *client = data->client;
+	int i, j;
+	int ret;
+	int raw_min, raw_max;
+	u16 raw_data;
+
+	set_default_result(data);
+
+	disable_irq(data->irq);
+	down(&data->work_lock);
+
+	memset(data->raw_processed_data, 0x00,
+					sizeof(data->raw_processed_data[0]) *
+					ARRAY_SIZE(data->raw_cal_n_count));
+
+	ret = bt404_ts_read_raw_datas(data, BT404_PROCESSED_DATA);
+	if (ret < 0)
+		goto err;
+
+	raw_min = raw_max = data->raw_processed_data[0];
+
+	for (i = 0; i < TSP_CMD_X_NUM; i++) {
+		for (j = 0; j < TSP_CMD_Y_NUM; j++) {
+
+			raw_data =
+				data->raw_processed_data[i * TSP_CMD_Y_NUM + j];
+/*
+			dev_info(&client->dev, "%2d,%2d: %d\n", i, j, raw_data);
+			msleep(1);
+*/
+			if (i < TSP_CMD_X_NUM - 1) {
+				if (raw_max < raw_data)
+					raw_max = raw_data;
+
+				if (raw_min > raw_data)
+					raw_min = raw_data;
+			}
+		}
+	}
+
+	up(&data->work_lock);
+	enable_irq(data->irq);
+
+	sprintf(data->cmd_buff, "%d,%d", raw_min, raw_max);
+	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
+	data->cmd_state = OK;
+
+	dev_info(&client->dev, "%s: \"%s\"(%d)\n", __func__,
+				data->cmd_buff,	strlen(data->cmd_buff));
+
+	return;
+err:
+	up(&data->work_lock);
+	enable_irq(data->irq);
+
+	sprintf(data->cmd_buff, "%s", "NG");
+	set_cmd_result(data, data->cmd_buff, strlen(data->cmd_buff));
+	data->cmd_state = FAIL;
+
+	dev_err(&client->dev, "%s: fail to read raw_processed_data\n",
+								__func__);
 	return ;
 }
 
@@ -3129,7 +3275,7 @@ static ssize_t fw_ver_kernel_temp_show(struct device *dev,
 	u16 buff;
 
 	buff = (u16)(data->fw_data[FW_VER_OFFSET + 2]
-					| (data->fw_data[FW_VER_OFFSET + 3] << 8));
+				| (data->fw_data[FW_VER_OFFSET + 3] << 8));
 	dev_info(&client->dev, "%s: \"0x%X\"\n", __func__, buff);
 	return sprintf(buf, "0x%X\n", buff);
 }
@@ -3219,9 +3365,14 @@ static int bt404_ts_probe(struct i2c_client *client,
 	struct device *fac_dev_tk;
 	struct device *fac_dev_ts_temp;
 
-	/* to do :
-	 * smd state check
-	 */
+	extern unsigned int lcd_type;
+
+	if (!lcd_type) {
+		dev_err(&client->dev, "touch screen is not connected.(%d)\n",
+								lcd_type);
+		return -ENODEV;
+	}
+
 	if (!pdata) {
 		dev_err(&client->dev, "no platform data\n");
 		ret = -EINVAL;
@@ -3229,12 +3380,15 @@ static int bt404_ts_probe(struct i2c_client *client,
 	}
 
 	if (!strcmp(client->name, BT404_ISP_DEVICE)) {
+		struct i2c_adapter *isp_adapter =
+					to_i2c_adapter(client->dev.parent);
 		if (!pdata->put_isp_i2c_client) {
 			dev_err(&client->dev, "can't set isp i2c client\n");
 			ret = -EINVAL;
 			goto err_put_isp_i2c_client;
 		}
 		pdata->put_isp_i2c_client(client);
+		i2c_lock_adapter(isp_adapter);
 		return 0;
 	}
 
@@ -3353,8 +3507,15 @@ static int bt404_ts_probe(struct i2c_client *client,
 		data->fw_data = fw_data_gff;
 
 	gpio_direction_output(pdata->gpio_ldo_en, 1);
+	mdelay(CHIP_ON_DELAY);
 
 	bt404_ts_init_device(data, false);
+
+	bt404_ts_power(data, POWER_OFF);
+	mdelay(CHIP_POWER_OFF_DELAY);
+	bt404_ts_power(data, POWER_ON);
+	mdelay(CHIP_ON_DELAY);
+	bt404_ts_resume_device(data);
 
 	data->work_state = NOTHING;
 	sema_init(&data->work_lock, 1);
@@ -3500,7 +3661,6 @@ static int bt404_ts_resume_device(struct bt404_ts_data *data)
 	struct i2c_client *client = data->client;
 	int ret;
 	int i;
-	u16 val;
 
 	bt404_ts_sw_reset(data);
 
@@ -3533,8 +3693,7 @@ static int bt404_ts_resume_device(struct bt404_ts_data *data)
 		goto err_i2c;
 	}
 
-	val = TOUCH_MODE;
-	ret = bt404_ts_write_reg(client, BT404_TOUCH_MODE, val);
+	ret = bt404_ts_write_reg(client, BT404_TOUCH_MODE, TOUCH_MODE);
 	if (ret < 0) {
 		dev_err(&client->dev, "%s: err: wt reg (touch mode)\n",
 								__func__);
@@ -3554,7 +3713,7 @@ static int bt404_ts_resume_device(struct bt404_ts_data *data)
 		goto err_i2c;
 	}
 
-	for (i = 0; i < 10; i++) {
+	for (i = 0; i < 5; i++) {
 		bt404_ts_write_cmd(client, BT404_CLEAR_INT_STATUS_CMD);
 		udelay(10);
 	}
@@ -3571,21 +3730,13 @@ static int bt404_ts_suspend(struct device *dev)
 	struct bt404_ts_data *data = i2c_get_clientdata(client);
 	int ret;
 
-	disable_irq(data->irq);
-
-	if (data->work_state != NOTHING) {
-		dev_err(dev, "%s: invalid work proceedure (%d)\n",
-			__func__, data->work_state);
-		ret = -1;
-		goto err;
-	}
-
 	if (!data->enabled) {
-		dev_err(dev, "%s, aleady disabled\n", __func__);
+		dev_err(dev, "%s, already disabled\n", __func__);
 		ret = -1;
 		goto out;
 	}
 
+	disable_irq(data->irq);
 	data->enabled = false;
 
 	bt404_ts_report_touch_data(data, true);
@@ -3599,15 +3750,12 @@ static int bt404_ts_suspend(struct device *dev)
 	}
 
 	bt404_ts_power(data, POWER_OFF);
-	mdelay(CHIP_POWER_OFF_DELAY);
+	/* The delay is moved resume function
+	mdelay(CHIP_POWER_OFF_DELAY); */
 
 	ret = 0;
-	data->work_state = SUSPEND;
 out:
 	dev_info(dev, "suspended.\n");
-	return ret;
-err:
-	enable_irq(data->irq);
 	return ret;
 }
 
@@ -3617,22 +3765,16 @@ static int bt404_ts_resume(struct device *dev)
 	struct bt404_ts_data *data = i2c_get_clientdata(client);
 	int ret;
 
-	if (data->work_state != SUSPEND) {
-		dev_err(&client->dev, "%s: invalid work proceedure (%d)\n",
-			__func__, data->work_state);
-		return -1;
-	}
-
 	if (data->enabled) {
-		dev_err(dev, "%s, aleady enabled\n", __func__);
+		dev_err(dev, "%s, already enabled\n", __func__);
 		ret = -1;
 		goto out;
 	}
 
 	data->pdata->int_set_pull(true);
-
 	data->enabled = true;
 
+	mdelay(CHIP_POWER_OFF_DELAY);
 	bt404_ts_power(data, POWER_ON);
 	mdelay(CHIP_ON_DELAY);
 
@@ -3649,7 +3791,6 @@ static int bt404_ts_resume(struct device *dev)
 		goto out;
 */
 	bt404_ts_resume_device(data);
-	data->work_state = NOTHING;
 	ret = 0;
 
 	enable_irq(data->irq);

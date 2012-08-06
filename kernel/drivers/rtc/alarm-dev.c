@@ -66,7 +66,8 @@ static long alarm_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	struct timespec tmp_time;
 	enum android_alarm_type alarm_type = ANDROID_ALARM_IOCTL_TO_TYPE(cmd);
 	uint32_t alarm_type_mask = 1U << alarm_type;
-#if defined(CONFIG_MACH_JANICE_CHN)
+
+#if defined(CONFIG_MACH_JANICE_CHN) || defined(CONFIG_MACH_GAVINI_CHN)
 	char bootalarm_data[14];
 #endif
 
@@ -163,7 +164,8 @@ from_old_alarm_set:
 		if (rv < 0)
 			goto err1;
 		break;
-#if defined(CONFIG_MACH_JANICE_CHN)
+
+#if defined(CONFIG_MACH_JANICE_CHN) || defined(CONFIG_MACH_GAVINI_CHN)
 	case ANDROID_ALARM_SET_ALARM:
 		if (copy_from_user(bootalarm_data,
 				(void __user *)arg, 14)) {

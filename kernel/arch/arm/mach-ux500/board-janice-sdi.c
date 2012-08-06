@@ -68,6 +68,7 @@ static struct mmci_platform_data ssg_sdi0_data = {
 	.gpio_cd	= T_FLASH_DETECT_JANICE_R0_0,
 	.gpio_wp	= -1,
 	.cd_invert	= true,
+	.signal_dir	= true,
 	.sigdir 	= MMCI_ST_DIRFBCLK |
 				MMCI_ST_DIRCMD |
 				MMCI_ST_DIRDAT0 |

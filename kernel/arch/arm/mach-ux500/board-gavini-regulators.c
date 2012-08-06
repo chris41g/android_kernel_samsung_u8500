@@ -187,10 +187,6 @@ struct ab8500_regulator_reg_init
 	 */
 	INIT_REGULATOR_REGISTER(AB8500_VSMPS1SEL1,             0x28),
 	/*
-	 * Vsmps2                   = 1.875V
-	 */
-	INIT_REGULATOR_REGISTER(AB8500_VSMPS2SEL2,             0x3f),
-	/*
 	 * Vaux1Sel                 = 3.0 V
 	 */
 	INIT_REGULATOR_REGISTER(AB8500_VAUX1SEL,               0x0E),
