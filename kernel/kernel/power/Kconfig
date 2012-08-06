@@ -175,6 +175,16 @@ config EARLYSUSPEND
 	  Call early suspend handlers when the user requested sleep state
 	  changes.
 
+config DVFS_LIMIT
+	bool "DVFS Limit"
+	depends on CPU_FREQ
+	default n
+	---help---
+	 This option can lock the CPU Frequency. If you lock the CPU Freq,
+	 Write "available CPU freq" to /sys/power/cpufreq_max_limit or
+	 /sys/power/cpufreq_min_limit. If you unlock the CPU Freq, Write
+	 "-1" to same sysfs node.
+
 choice
 	prompt "User-space screen access"
 	default FB_EARLYSUSPEND if !FRAMEBUFFER_CONSOLE

@@ -32,7 +32,10 @@
 #define GPIO_LEVEL_HIGH		1
 #endif
 
+/*
 #define LED_COMPENSATION
+#define PROJECTOR_DEBUG
+*/
 #define R_compensation	0
 #define G_compensation	0
 #define B_compensation	0
@@ -74,6 +77,7 @@ static char step_motor_cw[] = {0x0A, 0x06, 0x05, 0x09};
 static int brightness = BRIGHT_HIGH;
 
 struct workqueue_struct *projector_work_queue;
+struct workqueue_struct *stepmotor_work_queue;
 struct work_struct projector_work_power_on;
 struct work_struct projector_work_power_off;
 struct work_struct projector_work_motor_cw;
@@ -84,23 +88,19 @@ struct device *sec_projector;
 extern struct class *sec_class;
 
 extern u32 sec_lpm_bootmode;
-static DECLARE_MUTEX(proj_mutex);
 
-int screen_direction = PRJ_ROTATE_0;
-EXPORT_SYMBOL(screen_direction);
-
-static struct proj_val proj_values;
+static int screen_direction;
 
 static int status;
 static int priv_status;
+static int saved_pattern = -1;
 
-static unsigned int not_calibrated;
+static unsigned int not_calibrated = 2;
 unsigned char RGB_BUF[MAX_LENGTH];
+unsigned int max_dac[3];
 static unsigned char seq_number;
 
 volatile unsigned char flash_rgb_level_data[3][3][MAX_LENGTH] = {0,};
-
-static unsigned char SequnceNumberForInit;
 
 struct projector_dpp2601_info {
 	struct i2c_client			*client;
@@ -109,13 +109,15 @@ struct projector_dpp2601_info {
 
 struct projector_dpp2601_info *info = NULL;
 
-/* #ifdef CONFIG_HAS_EARLYSUSPEND
+/*
+#ifdef CONFIG_HAS_EARLYSUSPEND
 static struct early_suspend early_suspend = {
 	.level = EARLY_SUSPEND_LEVEL_BLANK_SCREEN,
 	.suspend = projector_module_early_suspend,
 	.resume = projector_module_late_resume
 };
-#endif */
+#endif
+*/
 
 int dpp_flash(unsigned char *DataSetArray, int iNumArray)
 {
@@ -123,26 +125,28 @@ int dpp_flash(unsigned char *DataSetArray, int iNumArray)
 	int CurrentDataIndex = 0;
 	int Bytes = 0;
 	
-	for(i = 0 ; i < iNumArray ; i =CurrentDataIndex + Bytes)
-	{
+	for (i = 0; i < iNumArray; i = CurrentDataIndex + Bytes) {
 		msleep(1);		//temp 091201 , to prevent from abnormal operation like nosie screen
 		Bytes =  DataSetArray[i + OFFSET_I2C_NUM_BYTES];
 		CurrentDataIndex = i + OFFSET_I2C_DATA_START;
 
-		if(DataSetArray[i + OFFSET_I2C_DIRECTION] == PRJ_WRITE){
+		if (DataSetArray[i + OFFSET_I2C_DIRECTION] == PRJ_WRITE) {
 			i2c_master_send(info->client, &DataSetArray[CurrentDataIndex], Bytes);
-			printk("%s write addr:",__func__);
+#ifdef PROJECTOR_DEBUG
+			printk("[%s] WRITE addr:", __func__);
 			for(i=0;i<Bytes;i++)
-				printk("%x ",DataSetArray[CurrentDataIndex+i]);
+				printk("%x ", DataSetArray[CurrentDataIndex+i]);
 			printk("\n");
-		}
-		else if(DataSetArray[i + OFFSET_I2C_DIRECTION] == PRJ_READ){
+#endif
+		} else if (DataSetArray[i + OFFSET_I2C_DIRECTION] == PRJ_READ) {
 			memset(RGB_BUF, 0x0, sizeof(RGB_BUF));
 			i2c_master_recv(info->client, RGB_BUF, Bytes);
-			printk("%s read value:%x %x %x %x\n",__func__,RGB_BUF[0],RGB_BUF[1],RGB_BUF[2],RGB_BUF[3]);
-		}
-		else{
-			printk("[PRJ] : dpp_flash : data is invalid !!\n");
+#ifdef PROJECTOR_DEBUG
+			printk(KERN_INFO "[%s] READ value:%x %x %x %x\n", __func__,
+				RGB_BUF[0], RGB_BUF[1], RGB_BUF[2], RGB_BUF[3]);
+#endif
+		} else {
+			printk(KERN_INFO "[%s] data is invalid !!\n", __func__);
 			return -EINVAL;
 		}
 	}
@@ -153,7 +157,7 @@ void set_proj_status(int enProjectorStatus)
 {
 	priv_status = status;
 	status = enProjectorStatus;
-	printk(KERN_INFO "%s projector status : %d\n", __func__, status);
+	printk(KERN_INFO "[%s] projector status : %d\n", __func__, status);
 }
 
 int get_proj_status(void)
@@ -168,14 +172,14 @@ static void projector_motor_cw_work(struct work_struct *work)
 	if (motor_step > MOTOR_MAX_PHASE)
 		motor_step = 0;
  
-	printk(KERN_INFO "%s CW:%d\n", __func__, motor_step);
 	MOTOR_PHASE_CW_OUT(motor_step);
+	printk(KERN_INFO "[%s] CW:%d\n", __func__, motor_step);
 	motor_abs_step++;
 }
 
 void projector_motor_cw(void)
 {
-	queue_work(projector_work_queue, &projector_work_motor_cw);
+	queue_work(stepmotor_work_queue, &projector_work_motor_cw);
 }
 
 static void projector_motor_ccw_work(struct work_struct *work)
@@ -184,29 +188,29 @@ static void projector_motor_ccw_work(struct work_struct *work)
 	if (motor_step < 0)
 		motor_step = MOTOR_MAX_PHASE;
 
-	printk(KERN_INFO "%s CCW:%d\n", __func__, motor_step);
 	MOTOR_PHASE_CW_OUT(motor_step);
+	printk(KERN_INFO "[%s] CCW:%d\n", __func__, motor_step);
 	motor_abs_step--;
 }
 
 void projector_motor_ccw(void)
 {
-	queue_work(projector_work_queue, &projector_work_motor_ccw);
+	queue_work(stepmotor_work_queue, &projector_work_motor_ccw);
 }
 
 void set_led_current(int level)
 {
-	printk(KERN_ERR "%s level:%d\n",__func__,level);
+	printk(KERN_ERR "[%s] level:%d\n", __func__, level);
 	#ifdef LED_COMPENSATION
 	unsigned short temp_buffer = 0;
 	#endif
 	
-	//RED_MSB
+	/* RED_MSB */
 	#ifdef LED_COMPENSATION
 	temp_buffer = (flash_rgb_level_data[level-1][0][2] << 8) | flash_rgb_level_data[level-1][0][3];
-	printk("%s R temp_buffer : %x\n",__func__,temp_buffer);
+	printk("[%s] R temp_buffer : %x\n", __func__, temp_buffer);
 	temp_buffer += R_compensation;
-	printk("%s R+R_compensation temp_buffer : %x\n",__func__,temp_buffer);
+	printk("[%s] R+R_compensation temp_buffer : %x\n", __func__, temp_buffer);
 	flash_rgb_level_data[level-1][0][2] = (temp_buffer & 0xff00) >> 8;
 	flash_rgb_level_data[level-1][0][3] = temp_buffer & 0xff;
 	#endif
@@ -215,18 +219,18 @@ void set_led_current(int level)
 	dpp_flash(rgb_msb_lsb, sizeof(rgb_msb_lsb)/sizeof(rgb_msb_lsb[0]));
 	dpp_flash(rgb_register_writing, sizeof(rgb_register_writing)/sizeof(rgb_register_writing[0]));
 
-	//RED_LSB
+	/* RED_LSB */
 	dpp_flash(red_lsb_register, sizeof(red_lsb_register)/sizeof(red_lsb_register[0]));
 	GENRGBSETTING(rgb_msb_lsb, flash_rgb_level_data[level-1][0][3]);
 	dpp_flash(rgb_msb_lsb, sizeof(rgb_msb_lsb)/sizeof(rgb_msb_lsb[0]));
 	dpp_flash(rgb_register_writing, sizeof(rgb_register_writing)/sizeof(rgb_register_writing[0]));
 
-	//GREEN_MSB
+	/* GREEN_MSB */
 	#ifdef	LED_COMPENSATION
 	temp_buffer = (flash_rgb_level_data[level-1][1][2] << 8) | flash_rgb_level_data[level-1][1][3];
-	printk("%s G temp_buffer : %x\n", __func__, temp_buffer);
+	printk("[%s] G temp_buffer : %x\n", __func__, temp_buffer);
 	temp_buffer += G_compensation;
-	printk("%s G+G_compensation temp_buffer : %x\n",__func__,temp_buffer);
+	printk("[%s] G+G_compensation temp_buffer : %x\n", __func__, temp_buffer);
 	flash_rgb_level_data[level-1][1][2] = (temp_buffer & 0xff00) >> 8;
 	flash_rgb_level_data[level-1][1][3] = temp_buffer & 0xff;
 	#endif
@@ -235,18 +239,18 @@ void set_led_current(int level)
 	dpp_flash(rgb_msb_lsb, sizeof(rgb_msb_lsb)/sizeof(rgb_msb_lsb[0]));
 	dpp_flash(rgb_register_writing, sizeof(rgb_register_writing)/sizeof(rgb_register_writing[0]));
 
-	//GREEN_LSB
+	/* GREEN_LSB */
 	dpp_flash(green_lsb_register, sizeof(green_lsb_register)/sizeof(green_lsb_register[0]));
 	GENRGBSETTING(rgb_msb_lsb, flash_rgb_level_data[level-1][1][3]);
 	dpp_flash(rgb_msb_lsb, sizeof(rgb_msb_lsb)/sizeof(rgb_msb_lsb[0]));
 	dpp_flash(rgb_register_writing, sizeof(rgb_register_writing)/sizeof(rgb_register_writing[0]));
 
-	//BLUE_MSB
+	/* BLUE_MSB */
 	#ifdef LED_COMPENSATION
 	temp_buffer = (flash_rgb_level_data[level-1][2][2] << 8) | flash_rgb_level_data[level-1][2][3];
-	printk("%s B temp_buffer : %x\n",__func__,temp_buffer);
+	printk("[%s] B temp_buffer : %x\n", __func__, temp_buffer);
 	temp_buffer += B_compensation;
-	printk("%s B+B_compensation temp_buffer : %x\n",__func__,temp_buffer);
+	printk("[%s] B+B_compensation temp_buffer : %x\n", __func__, temp_buffer);
 	flash_rgb_level_data[level-1][2][2] = (temp_buffer & 0xff00) >> 8;
 	flash_rgb_level_data[level-1][2][3] = temp_buffer & 0xff;
 	#endif
@@ -255,7 +259,7 @@ void set_led_current(int level)
 	dpp_flash(rgb_msb_lsb, sizeof(rgb_msb_lsb)/sizeof(rgb_msb_lsb[0]));
 	dpp_flash(rgb_register_writing, sizeof(rgb_register_writing)/sizeof(rgb_register_writing[0]));
 
-	//BLUE_LSB
+	/* BLUE_LSB */
 	dpp_flash(blue_lsb_register, sizeof(blue_lsb_register)/sizeof(blue_lsb_register[0]));
 	GENRGBSETTING(rgb_msb_lsb, flash_rgb_level_data[level-1][2][3]);
 	dpp_flash(rgb_msb_lsb, sizeof(rgb_msb_lsb)/sizeof(rgb_msb_lsb[0]));
@@ -265,16 +269,16 @@ void set_led_current(int level)
 void pwron_seq_gpio(void)
 {
 	gpio_direction_output(info->pdata->gpio_mp_on, GPIO_LEVEL_LOW);
-	msleep(250);
+	msleep(120);
 	
 	gpio_direction_output(info->pdata->gpio_mp_on, GPIO_LEVEL_HIGH);
 	msleep(200);
 
-	gpio_direction_output(info->pdata->gpio_prj_en, GPIO_LEVEL_HIGH);
+	gpio_direction_output(info->pdata->gpio_parkz, GPIO_LEVEL_HIGH);
 	msleep(50);
 
-	gpio_direction_output(info->pdata->gpio_parkz, GPIO_LEVEL_HIGH);
-	msleep(100);
+	gpio_direction_output(info->pdata->gpio_prj_en, GPIO_LEVEL_HIGH);
+	msleep(300);
 }
 
 void pwron_seq_direction(void)
@@ -308,47 +312,100 @@ void pwron_seq_source_res(int value)
 
 void pwron_seq_fdr(void)
 {
-	int i, cnt;
+	int cnt;
+	unsigned int dac;
 
 	DPPDATAFLASH(InitData_FlashDataLoading);
 	msleep(3);
 
 	for (cnt = 0; cnt < 10; cnt++) {
 		DPPDATAFLASH(InitData_ReadFlashData);
-
 		if (cnt < 9) {
-			for (i = 0; i < MAX_LENGTH; i++) {
-				if (RGB_BUF[i] < 0 || RGB_BUF[i] > 999)
-					not_calibrated = true;
-			}
+			dac = 0;
+			dac |= RGB_BUF[0] << 24 | RGB_BUF[1] << 16
+				| RGB_BUF[2] << 8 |  RGB_BUF[3];
+
+			not_calibrated = (dac < 2 || dac > 999) ? 1 : 0;
+
+			if (dac >= max_dac[cnt / 3])
+				max_dac[cnt / 3] = dac;
 			memcpy(flash_rgb_level_data[cnt/3][cnt%3], RGB_BUF, MAX_LENGTH);
 		}
 	}
 	seq_number = RGB_BUF[MAX_LENGTH-1];
-	printk(KERN_ERR "%s seq_number %x\n", __func__, seq_number);
+	printk(KERN_ERR "[%s] seq_number %x\n", __func__, seq_number);
+	printk(KERN_INFO "[%s] max_dac : %d, %d, %d\n", __func__,
+					max_dac[0], max_dac[1], max_dac[2]);
 
 	DPPDATAFLASH(InitData_TransferCtrlToI2C);
 }
 
+void pwron_seq_current_limit(void)
+{
+	unsigned int limit;
+	unsigned char ireg = 0x07;
+	unsigned char current_limit[] = {
+		PRJ_WRITE, 2, 0x02, 0xFF
+	};
+
+	limit = (max_dac[brightness - 1] * 13) / 10;
+
+	if (limit < 260)
+		ireg |= 0x0 << 3;
+	else if (limit >= 260 && limit < 300)
+		ireg |= 0x1 << 3;
+	else if (limit >= 300 && limit < 345)
+		ireg |= 0x2 << 3;
+	else if (limit >= 345 && limit < 385)
+		ireg |= 0x3 << 3;
+	else if (limit >= 385 && limit < 440)
+		ireg |= 0x4 << 3;
+	else if (limit >= 440 && limit < 660)
+		ireg |= 0x5 << 3;
+	else if (limit >= 660 && limit < 880)
+		ireg |= 0x6 << 3;
+	else if (limit >= 880)
+		ireg |= 0x7 << 3;
+
+	current_limit[3] = ireg;
+
+	DPPDATAFLASH(current_limit);
+	printk(KERN_INFO "[%s] Current Limit : %u, %#x\n", __func__,
+			limit, (ireg & (~0x7)) >> 3);
+}
+
 static void proj_pwron_seq_work(struct work_struct *work)
 {
-	pwron_seq_gpio();
+	if (get_proj_status() == PRJ_ON_INTERNAL) {
+		DPPDATAFLASH(Output_Curtain_Enable);
+		pwron_seq_direction();
+		pwron_seq_source_res(LCD_VIEW);
+		msleep(300);
+		DPPDATAFLASH(External_source);
+		DPPDATAFLASH(Free_run);
+		DPPDATAFLASH(Output_Curtain_Disable);
+	} else {
+		pwron_seq_gpio();
 
-	pwron_seq_direction();
-	pwron_seq_source_res(LCD_VIEW);
+		pwron_seq_direction();
+		pwron_seq_source_res(LCD_VIEW);
 
-	pwron_seq_fdr();
-	set_led_current(brightness);
- 
-	GENRGBSETTING(Dmd_seq, seq_number);
-	DPPDATAFLASH(Dmd_seq);
+		pwron_seq_fdr();
+		pwron_seq_current_limit();
+		set_led_current(brightness);
 
-	DPPDATAFLASH(External_source);
-	DPPDATAFLASH(Free_run);
+		GENRGBSETTING(Dmd_seq, seq_number);
+		DPPDATAFLASH(Dmd_seq);
 
-	if (system_rev >= GAVINI_R0_1)
-		gpio_direction_output(info->pdata->gpio_prj_led_en,
-				GPIO_LEVEL_HIGH);
+		DPPDATAFLASH(External_source);
+		DPPDATAFLASH(Free_run);
+		DPPDATAFLASH(AGC_OFF);
+
+		if (system_rev >= GAVINI_R0_1)
+			gpio_direction_output(info->pdata->gpio_prj_led_en,
+					GPIO_LEVEL_HIGH);
+	}
+	set_proj_status(PRJ_ON_RGB_LCD);
 }
 
 static void proj_testmode_pwron_seq_work(struct work_struct *work)
@@ -359,30 +416,68 @@ static void proj_testmode_pwron_seq_work(struct work_struct *work)
 	pwron_seq_source_res(INTERNAL_PATTERN);
 
 	pwron_seq_fdr();
+	pwron_seq_current_limit();
 	set_led_current(brightness);
 
 	GENRGBSETTING(Dmd_seq, seq_number);
 	DPPDATAFLASH(Dmd_seq);
 
+	switch (saved_pattern) {
+	case CHECKER:
+		DPPDATAFLASH(I_4x4checker);
+		verify_value = 20;
+		break;
+	case WHITE:
+		DPPDATAFLASH(I_white);
+		verify_value = 21;
+		break;
+	case BLACK:
+		DPPDATAFLASH(I_black);
+		verify_value = 22;
+		break;
+	case LEDOFF:
+		DPPDATAFLASH(RGB_led_off);
+		set_proj_status(RGB_LED_OFF);
+		verify_value = 23;
+		break;
+	case RED:
+		DPPDATAFLASH(I_red);
+		verify_value = 24;
+		break;
+	case GREEN:
+		DPPDATAFLASH(I_green);
+		verify_value = 25;
+		break;
+	case BLUE:
+		DPPDATAFLASH(I_blue);
+		verify_value = 26;
+		break;
+	case STRIPE:
+		DPPDATAFLASH(I_stripe);
+		verify_value = 28;
+		break;
+	default:
+		break;
+	}
+	saved_pattern = -1;
+
+	DPPDATAFLASH(AGC_OFF);
 	if (system_rev >= GAVINI_R0_1)
 		gpio_direction_output(info->pdata->gpio_prj_led_en,
-				GPIO_LEVEL_HIGH);
+					GPIO_LEVEL_HIGH);
+	set_proj_status(PRJ_ON_INTERNAL);
 }
 
 void proj_testmode_pwron_seq(void)
 {
 	queue_work(projector_work_queue, &projector_work_testmode_on);
-	set_proj_status(PRJ_ON_RGB_LCD);
 }
 
 void ProjectorPowerOnSequence(void)
 {
-	if (!sec_lpm_bootmode && !get_proj_status()) {
+	if (!sec_lpm_bootmode)
 		queue_work(projector_work_queue, &projector_work_power_on);
-		set_proj_status(PRJ_ON_RGB_LCD);
-	}
 }
-EXPORT_SYMBOL(ProjectorPowerOnSequence);
 
 static void proj_pwroff_seq_work(struct work_struct *work)
 {
@@ -391,30 +486,15 @@ static void proj_pwroff_seq_work(struct work_struct *work)
 				GPIO_LEVEL_LOW);
 
 	gpio_direction_output(info->pdata->gpio_parkz, GPIO_LEVEL_LOW);
-	msleep(10);
+	msleep(50);
 
 	gpio_direction_output(info->pdata->gpio_prj_en, GPIO_LEVEL_LOW);
+	set_proj_status(PRJ_OFF);
 }
 
 void ProjectorPowerOffSequence(void)
 {
 	queue_work(projector_work_queue, &projector_work_power_off);
-	set_proj_status(PRJ_OFF);
-}
-EXPORT_SYMBOL(ProjectorPowerOffSequence);
-
-void turn_on_proj(unsigned int enProjectorStatus)
-{
-	if (priv_status == PRJ_OFF) {
-		ProjectorPowerOnSequence();
-	} else {
-		DPPDATAFLASH(Output_Curtain_Enable);
-	}
-}
-
-void turn_off_proj(void)
-{
-	ProjectorPowerOffSequence();
 }
 
 void rotate_proj_screen(int bLandscape)
@@ -447,7 +527,7 @@ void rotate_proj_screen(int bLandscape)
 			break;
 		default:
 			break;
-		};
+		}
 		screen_direction = bLandscape;
 	}
 }
@@ -460,54 +540,6 @@ int get_proj_rotation(void)
 int get_proj_brightness(void)
 {
 	return brightness;
-}
-
-void proj_set_rotation_lock(int bRotationLock)
-{
-	if (proj_get_rotation_lock() != bRotationLock) {
-		proj_values.bRotationLock = bRotationLock;
-	}
-}
-
-int proj_get_rotation_lock(void)
-{
-	return proj_values.bRotationLock;
-}
-
-void PRJ_SetCurtainEnable(int bCurtainEnable)
-{
-	if (PRJ_GetCurtainEnable() != bCurtainEnable) {
-		if (get_proj_status() != PRJ_OFF) {
-			if (bCurtainEnable) {
-				DPPDATAFLASH(Output_Curtain_Enable);
-			} else {
-				DPPDATAFLASH(Output_Curtain_Disable);
-			}
-		}
-		proj_values.bCurtainEnable = bCurtainEnable;
-	}
-}
-
-int PRJ_GetCurtainEnable(void)
-{
-	return proj_values.bCurtainEnable;
-}
-
-void PRJ_SetHighAmbientLight(int bHighAmbientLight)
-{
-	if (PRJ_GetHighAmbientLight() != bHighAmbientLight) {
-		if (get_proj_status() == PRJ_ON_RGB_LCD) {
-			DPPDATAFLASH(Output_Curtain_Enable);
-			msleep(100);
-			DPPDATAFLASH(Output_Curtain_Disable);
-		}
-		proj_values.bHighAmbientLight = bHighAmbientLight;
-	}
-}
-
-int PRJ_GetHighAmbientLight(void)
-{
-	return proj_values.bHighAmbientLight;
 }
 
 int __devinit dpp2601_i2c_probe(struct i2c_client *client,
@@ -529,14 +561,14 @@ int __devinit dpp2601_i2c_probe(struct i2c_client *client,
 
 	if (!i2c_check_functionality(client->adapter, I2C_FUNC_I2C))
 	{
-		printk(KERN_ERR "[projector] dpp2601_i2c_probe : need I2C_FUNC_I2C\n");
+		printk(KERN_ERR "[%s] need I2C_FUNC_I2C\n", __func__);
 		ret = -ENODEV;
 		return ret;
 	}
 	
 	info = kzalloc(sizeof(struct projector_dpp2601_info), GFP_KERNEL);
 	if (!info) {
-		printk(KERN_ERR "[projector] fail to memory allocation.\n");
+		printk(KERN_ERR "[%s] fail to memory allocation.\n", __func__);
 		return -1;
 	}
 
@@ -550,16 +582,17 @@ int __devinit dpp2601_i2c_probe(struct i2c_client *client,
 	gpio_request(info->pdata->gpio_prj_en, "PRJ_EN");
 	gpio_request(info->pdata->gpio_prj_led_en, "PRJ_LED_EN");
 
-	set_proj_status(PRJ_OFF);
-	proj_set_rotation_lock(false);
-	PRJ_SetCurtainEnable(false);
-	PRJ_SetHighAmbientLight(false);
-
 	projector_work_queue = create_singlethread_workqueue("projector_work_queue");
-   if (!projector_work_queue){
-		printk(KERN_ERR "[projector] dpp2601_i2c_probe fail.\n"); 	
+	if (!projector_work_queue) {
+		printk(KERN_ERR "[%s] i2c_probe fail.\n", __func__);
 		return -ENOMEM;
-   }
+	}
+
+	stepmotor_work_queue = create_singlethread_workqueue("stepmotor_work_queue");
+	if (!stepmotor_work_queue) {
+		printk(KERN_ERR "[%s] i2c_probe fail.\n", __func__);
+		return -ENOMEM;
+	}
 
 	INIT_WORK(&projector_work_power_on, proj_pwron_seq_work);
 	INIT_WORK(&projector_work_power_off, proj_pwroff_seq_work);
@@ -567,7 +600,7 @@ int __devinit dpp2601_i2c_probe(struct i2c_client *client,
 	INIT_WORK(&projector_work_motor_ccw, projector_motor_ccw_work);
 	INIT_WORK(&projector_work_testmode_on, proj_testmode_pwron_seq_work);
 	
-	printk(KERN_ERR "[projector] dpp2601_i2c_probe.\n");
+	printk(KERN_ERR "[%s] dpp2601_i2c_probe.\n", __func__);
 
 	return 0;
 }
@@ -606,86 +639,22 @@ int projector_module_release(struct inode *inode, struct file *file)
 int projector_module_ioctl(struct inode *inode, struct file *file,
 		       unsigned int cmd, unsigned long arg)
 {
-	int ret = 0;
-	if (down_interruptible(&proj_mutex))
-		return -ERESTARTSYS;
-	
-	switch (cmd) {
-	case IOCTL_PROJECTOR_SET_STATE:
-		if (arg != get_proj_status() && arg < PRJ_MAX_STATE) {
-			PRJ_SetCurtainEnable(false);
-			set_proj_status(arg);
-			if (arg == PRJ_OFF) {
-				turn_off_proj();
-			} else {
-				turn_on_proj(arg);
-				if (!not_calibrated) {
-					ret = -1;
-				}
-			}
-		}
-		break;
-	case IOCTL_PROJECTOR_GET_STATE:
-		ret = get_proj_status();
-		break;
-	case IOCTL_PROJECTOR_SET_ROTATION:
-		if (!proj_values.bRotationLock && arg < PRJ_MAX_ROTATE) {
-			rotate_proj_screen(arg);
-		}
-		break;
-	case IOCTL_PROJECTOR_GET_ROTATION:
-		ret = get_proj_rotation();
-		break;
-	case IOCTL_PROJECTOR_GET_BRIGHTNESS:
-		ret = get_proj_brightness();
-		break;
-	case IOCTL_PROJECTOR_SET_FUNCTION:
-		if (arg & (0x1 << ROTATION_LOCK)) {
-			proj_set_rotation_lock(true);
-		} else {
-			proj_set_rotation_lock(false);
-		}
-		if (arg& (0x1 << CURTAIN_ENABLE)) {
-			PRJ_SetCurtainEnable(true);
-		} else {
-			PRJ_SetCurtainEnable(false);
-		}
-		if (arg & (0x1 << HIGH_AMBIENT_LIGHT)) {
-			PRJ_SetHighAmbientLight(true);
-		} else {
-			PRJ_SetHighAmbientLight(false);
-		}
-		break;
-	case IOCTL_PROJECTOR_GET_FUNCTION:
-		if (proj_get_rotation_lock()) {
-			ret |= (0x1 << ROTATION_LOCK);
-		}
-		if (PRJ_GetCurtainEnable()) {
-			ret |= (0x1 << CURTAIN_ENABLE);
-		}
-		if (PRJ_GetHighAmbientLight()) {
-			ret |= (0x1 << HIGH_AMBIENT_LIGHT);
-		}
-		break;
-	default:
-		printk("unknown cmd = %x\n", cmd);
-		break;
-	}
-	up(&proj_mutex);
-	return ret;
+
 }
 
-/* #ifdef CONFIG_HAS_EARLYSUSPEND
+/*
+#ifdef CONFIG_HAS_EARLYSUSPEND
 void projector_module_early_suspend(struct early_suspend *h)
 {
-	turn_off_proj();
+
 }
 
 void projector_module_late_resume(struct early_suspend *h)
 {
-	turn_on_proj(PRJ_ON_RGB_LCD);
+
 }
-#endif */
+#endif
+*/
 
 static struct file_operations projector_module_fops = {
 	.owner = THIS_MODULE,
@@ -702,64 +671,64 @@ static struct miscdevice projector_module_device = {
 
 void project_internal(int pattern)
 {
-	if (!get_proj_status()) {
+	flush_workqueue(projector_work_queue);
+	if (get_proj_status() == PRJ_OFF) {
 		proj_testmode_pwron_seq();
-		msleep(2000);
-	}
+	} else {
+		if (get_proj_status() == PRJ_ON_RGB_LCD) {
+			DPPDATAFLASH(Internal_pattern_direction);
+			pwron_seq_source_res(INTERNAL_PATTERN);
+			set_proj_status(PRJ_ON_INTERNAL);
+		}
 
-	if (get_proj_status() == RGB_LED_OFF) {
-		DPPDATAFLASH(RGB_led_on);
-		set_proj_status(PRJ_ON_RGB_LCD);
-	}
+		if (get_proj_status() == RGB_LED_OFF) {
+			DPPDATAFLASH(RGB_led_on);
+			set_proj_status(PRJ_ON_INTERNAL);
+		}
 
-	switch (pattern) {
-	case CHECKER:
-		DPPDATAFLASH(I_4x4checker);
-		DPPDATAFLASH(Free_run);
-		verify_value = 20;
-		break;
-	case WHITE:
-		DPPDATAFLASH(I_white);
-		DPPDATAFLASH(Free_run);
-		verify_value = 21;
-		break;
-	case BLACK:
-		DPPDATAFLASH(I_black);
-		DPPDATAFLASH(Free_run);
-		verify_value = 22;
-		break;
-	case LEDOFF:
-		DPPDATAFLASH(RGB_led_off);
-		set_proj_status(RGB_LED_OFF);
-		verify_value = 23;
-		break;
-	case RED:
-		DPPDATAFLASH(I_red);
-		DPPDATAFLASH(Free_run);
-		verify_value = 24;
-		break;
-	case GREEN:
-		DPPDATAFLASH(I_green);
-		DPPDATAFLASH(Free_run);
-		verify_value = 25;
-		break;
-	case BLUE:
-		DPPDATAFLASH(I_blue);
-		DPPDATAFLASH(Free_run);
-		verify_value = 26;
-		break;
-	case BEAUTY:
-		verify_value = 27;
-		break;
-	case STRIPE:
-		DPPDATAFLASH(I_stripe);
-		DPPDATAFLASH(Free_run);
-		verify_value = 28;
-		break;
-	default:
-		break;
-	};
+		switch (pattern) {
+		case CHECKER:
+			DPPDATAFLASH(I_4x4checker);
+			verify_value = 20;
+			break;
+		case WHITE:
+			DPPDATAFLASH(I_white);
+			verify_value = 21;
+			break;
+		case BLACK:
+			DPPDATAFLASH(I_black);
+			verify_value = 22;
+			break;
+		case LEDOFF:
+			DPPDATAFLASH(RGB_led_off);
+			set_proj_status(RGB_LED_OFF);
+			verify_value = 23;
+			break;
+		case RED:
+			DPPDATAFLASH(I_red);
+			verify_value = 24;
+			break;
+		case GREEN:
+			DPPDATAFLASH(I_green);
+			verify_value = 25;
+			break;
+		case BLUE:
+			DPPDATAFLASH(I_blue);
+			verify_value = 26;
+			break;
+		case BEAUTY:
+			verify_value = 27;
+			break;
+		case STRIPE:
+			DPPDATAFLASH(I_stripe);
+			verify_value = 28;
+			break;
+		default:
+			break;
+		}
+	}
 }
+
 
 void move_motor_step(int value)
 {
@@ -773,7 +742,7 @@ void move_motor_step(int value)
 			if (motor_step < 0)
 				motor_step = MOTOR_MAX_PHASE;
 
-			printk(KERN_INFO "%s CCW:%d\n", __func__, motor_step);
+			printk(KERN_INFO "[%s] CCW:%d\n", __func__, motor_step);
 			MOTOR_PHASE_CW_OUT(motor_step);
 		}
 
@@ -784,7 +753,7 @@ void move_motor_step(int value)
 			if (motor_step > MOTOR_MAX_PHASE)
 				motor_step = 0;
 
-			printk(KERN_INFO "%s CW:%d\n", __func__, motor_step);
+			printk(KERN_INFO "[%s] CW:%d\n", __func__, motor_step);
 			MOTOR_PHASE_CW_OUT(motor_step);
 			motor_abs_step++;
 		}
@@ -796,7 +765,7 @@ void move_motor_step(int value)
 				if (motor_step > MOTOR_MAX_PHASE)
 					motor_step = 0;
 
-				printk(KERN_INFO "%s CW:%d\n",
+				printk(KERN_INFO "[%s] CW:%d\n",
 						__func__, motor_step);
 				MOTOR_PHASE_CW_OUT(motor_step);
 				motor_abs_step++;
@@ -807,7 +776,7 @@ void move_motor_step(int value)
 				if (motor_step < 0)
 					motor_step = MOTOR_MAX_PHASE;
 
-				printk(KERN_INFO "%s CCW:%d\n",
+				printk(KERN_INFO "[%s] CCW:%d\n",
 						__func__, motor_step);
 				MOTOR_PHASE_CW_OUT(motor_step);
 				motor_abs_step--;
@@ -815,7 +784,8 @@ void move_motor_step(int value)
 		}
 	}
 
-	printk(KERN_INFO "Projector Motor ABS Step : %d\n", motor_abs_step);
+	printk(KERN_INFO "[%s] Projector Motor ABS Step : %d\n",
+			__func__, motor_abs_step);
 	verify_value = 300 + value;
 }
 
@@ -825,20 +795,19 @@ static ssize_t store_motor_action(struct device *dev,
 	int direction;
 
 	sscanf(buf, "%d\n", &direction);
+	flush_workqueue(stepmotor_work_queue);
 
-	if (get_proj_status()) {
+	if (status != PRJ_OFF) {
 		switch (direction) {
 		case MOTOR_CW:
 			projector_motor_cw();
-			printk(KERN_DEBUG "Projector_StepMotor CW rotated\n");
 			break;
 		case MOTOR_CCW:
 			projector_motor_ccw();
-			printk(KERN_DEBUG "Projector_StepMotor CCW rotated\n");
 			break;
 		default:
 			break;
-		};
+		}
 	}
 
 	return count;
@@ -851,23 +820,29 @@ static ssize_t store_brightness(struct device *dev,
 
 	sscanf(buf, "%d\n", &value);
 
-	switch (value) {
-	case 1:
-		brightness = BRIGHT_HIGH;
-		printk(KERN_INFO "Projector Brightness HIGH Set\n");
-		break;
-	case 2:
-		brightness = BRIGHT_MID;
-		printk(KERN_INFO "Projector Brightness MID Set\n");
-		break;
-	case 3:
-		brightness = BRIGHT_LOW;
-		printk(KERN_INFO "Projector Brightness LOW Set\n");
-		break;
-	default:
-		break;
-	};
-
+	if (get_proj_status() == PRJ_OFF) {
+		switch (value) {
+		case 1:
+			brightness = BRIGHT_HIGH;
+			break;
+		case 2:
+			brightness = BRIGHT_MID;
+			break;
+		case 3:
+			brightness = BRIGHT_LOW;
+			break;
+		default:
+			break;
+		}
+	} else {
+		DPPDATAFLASH(Output_Curtain_Enable);
+		brightness = value;
+		pwron_seq_current_limit();
+		set_led_current(value);
+		DPPDATAFLASH(Output_Curtain_Disable);
+		printk(KERN_INFO "[%s] Proj Brightness Changed : %d\n",
+					__func__, value);
+	}
 	return count;
 }
 
@@ -878,15 +853,14 @@ static ssize_t store_proj_key(struct device *dev,
 
 	sscanf(buf, "%d\n", &value);
 
+	flush_workqueue(projector_work_queue);
 	switch (value) {
 	case 0:
-		if (get_proj_status()) {
-			ProjectorPowerOffSequence();
-			verify_value = 0;
-		}
+		ProjectorPowerOffSequence();
+		verify_value = 0;
 		break;
 	case 1:
-		if (!get_proj_status()) {
+		if (get_proj_status() != PRJ_ON_RGB_LCD) {
 			ProjectorPowerOnSequence();
 			verify_value = 10;
 		}
@@ -895,6 +869,7 @@ static ssize_t store_proj_key(struct device *dev,
 		break;
 	};
 
+	printk(KERN_INFO "[%s] -->  %d\n", __func__, value);
 	return count;
 }
 
@@ -906,18 +881,6 @@ static ssize_t show_cal_history(struct device *dev,
 	size = sprintf(buf, "%d\n", not_calibrated);
 
 	return size;
-}
-
-static ssize_t show_projection_verify(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-
-}
-
-static ssize_t show_motor_verify(struct device *dev,
-		struct device_attribute *attr, char *buf)
-{
-
 }
 
 static ssize_t show_screen_direction(struct device *dev,
@@ -962,8 +925,8 @@ static ssize_t store_rotate_screen(struct device *dev,
 	sscanf(buf, "%d\n", &value);
 
 	if (value >= 0 && value <= 3) {
-		printk(KERN_INFO "\ninputed rotate : %d", value);
 		rotate_proj_screen(value);
+		printk(KERN_INFO "[%s] inputed rotate : %d\n", __func__, value);
 	}
 
 	return count;
@@ -975,12 +938,22 @@ static ssize_t store_projection_verify(struct device *dev,
 	int value;
 
 	sscanf(buf, "%d\n", &value);
+	printk(KERN_INFO "[%s] selected internal pattern : %d\n",
+				__func__, value);
 
-	if (value >= 0 && value <= 8) {
-		printk(KERN_INFO "\nselected internal pattern : %d", value);
+
+	if (value == CURTAIN_ON) {
+		if (status != PRJ_ON_INTERNAL)
+			return count;
+		DPPDATAFLASH(Output_Curtain_Enable);
+	} else if (value == CURTAIN_OFF) {
+		if (status != PRJ_ON_INTERNAL)
+			return count;
+		DPPDATAFLASH(Output_Curtain_Disable);
+	} else {
+		saved_pattern = value;
 		project_internal(value);
 	}
-
 	return count;
 }
 
@@ -993,7 +966,6 @@ static ssize_t store_motor_verify(struct device *dev,
 	sscanf(buf, "%d\n", &value);
 
 	if (value >= 0 && value <= 60) {
-		printk(KERN_INFO "\nselected motor abs step : %d", value);
 		move_motor_step(value);
 	}
 
@@ -1009,9 +981,9 @@ static DEVICE_ATTR(rotate_screen, S_IRUGO | S_IWUSR,
 static DEVICE_ATTR(screen_direction, S_IRUGO | S_IWUSR,
 				show_screen_direction, store_screen_direction);
 static DEVICE_ATTR(projection_verify, S_IRUGO | S_IWUSR,
-			show_projection_verify, store_projection_verify);
+				NULL, store_projection_verify);
 static DEVICE_ATTR(motor_verify, S_IRUGO | S_IWUSR,
-				show_motor_verify, store_motor_verify);
+				NULL, store_motor_verify);
 static DEVICE_ATTR(retval, S_IRUGO, show_retval, NULL);
 
 int __init projector_module_init(void)

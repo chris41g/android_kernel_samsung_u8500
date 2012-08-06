@@ -55,6 +55,7 @@ struct bt404_ts_platform_data {
 	void (*put_isp_i2c_client)(struct i2c_client *client);
 	struct i2c_client *(*get_isp_i2c_client)(void);
 	void	(*int_set_pull)(bool to_up);
+	int (*pin_configure)(bool to_gpios);
 };
 
 extern struct class *sec_class;

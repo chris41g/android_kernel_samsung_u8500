@@ -8,6 +8,10 @@
  *  Host driver specific definitions.
  */
 
+#if defined(CONFIG_MACH_CODINA) || defined(CONFIG_MACH_GAVINI)
+#define MMC_HOST_DEBUGGING
+#endif
+
 #define _MMC_SAFE_ACCESS_
 #ifdef _MMC_SAFE_ACCESS_
 extern int mmc_is_available;

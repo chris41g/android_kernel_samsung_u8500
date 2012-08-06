@@ -101,7 +101,7 @@ static struct v_to_cap cap_tbl_B[] = {
 };
 #endif
 
-static struct v_to_cap cap_tbl[] = {
+static struct v_to_cap cap_tbl_200ma_1850ma[] = {
 	{4186,	100},
 	{4163,	 99},
 	{4114,	 95},
@@ -128,7 +128,7 @@ static struct v_to_cap cap_tbl[] = {
 	{3094,	  0},
 };
 
-static struct v_to_cap cap_tbl_5ma[] = {
+static struct v_to_cap cap_tbl_5ma_1850ma[] = {
 	{4172, 100},
 	{4151, 99},
 	{4108, 95},
@@ -158,6 +158,108 @@ static struct v_to_cap cap_tbl_5ma[] = {
 	{3547, 2},
 	{3469, 1},
 	{3338, 0},
+};
+
+static struct v_to_cap cap_tbl_200ma_2000ma[] = {
+	{4322, 100},
+	{4272, 99},
+	{4257, 98},
+	{4216, 95},
+	{4155, 90},
+	{4118, 87},
+	{4086, 84},
+	{4041, 80},
+	{4020, 78},
+	{4010, 77},
+	{3979, 74},
+	{3959, 72},
+	{3932, 69},
+	{3905, 66},
+	{3876, 63},
+	{3849, 60},
+	{3833, 58},
+	{3811, 55},
+	{3795, 52},
+	{3784, 50},
+	{3762, 45},
+	{3743, 40},
+	{3730, 35},
+	{3720, 30},
+	{3705, 25},
+	{3697, 23},
+	{3678, 20},
+	{3660, 18},
+	{3627, 15},
+	{3606, 12},
+	{3591, 10},
+	{3580, 9},
+	{3557, 8},
+	{3528, 7},
+	{3461, 5},
+	{3426, 4},
+	{3395, 3},
+	{3359, 2},
+	{3328, 1},
+	{3300, 0},
+};
+
+static struct v_to_cap cap_tbl_5ma_2000ma[] = {
+	{4320, 100},
+	{4296, 99},
+	{4283, 98},
+	{4245, 95},
+	{4185, 90},
+	{4152, 87},
+	{4119, 84},
+	{4077, 80},
+	{4057, 78},
+	{4048, 77},
+	{4020, 74},
+	{4003, 72},
+	{3978, 69},
+	{3955, 66},
+	{3934, 63},
+	{3912, 60},
+	{3894, 58},
+	{3860, 55},
+	{3837, 52},
+	{3827, 50},
+	{3806, 45},
+	{3791, 40},
+	{3779, 35},
+	{3770, 30},
+	{3758, 25},
+	{3739, 20},
+	{3730, 18},
+	{3706, 15},
+	{3684, 13},
+	{3675, 10},
+	{3673, 9},
+	{3665, 7},
+	{3649, 5},
+	{3628, 4},
+	{3585, 3},
+	{3525, 2},
+	{3441, 1},
+	{3300, 0},
+};
+
+/* Battery voltage to Resistance table*/
+static struct v_to_res res_tbl[] = {
+	{4064, 143},
+	{3956, 160},
+	{3847, 262},
+	{3806, 280},
+	{3780, 228},
+	{3744, 289},
+	{3725, 213},
+	{3700, 248},
+	{3668, 257},
+	{3650, 245},
+	{3564, 231},
+	{3522, 290},
+	{3320, 497},
+	{3120, 556},
 };
 
 /*
@@ -211,15 +313,15 @@ static const struct battery_type bat_type[] = {
 		.resis_high = 0,
 		.resis_low = 0,
 		.battery_resistance = 105,
-		.line_impedance = 0,
-		.charge_full_design = 1850,
-		.nominal_voltage = 3700,
+		.line_impedance = 11,
+		.charge_full_design = 2000,
+		.nominal_voltage = 3800,
 		.termination_vol = 4050,
 		.termination_curr_1st = 220,
-		.termination_curr_2nd = 160,
-		.recharge_vol = 3990,
+		.termination_curr_2nd = 120,
+		.recharge_vol = 4250,
 		.normal_cur_lvl = 1200,
-		.normal_vol_lvl = 4100,
+		.normal_vol_lvl = 4350,
 		.maint_a_cur_lvl = 400,
 		.maint_a_vol_lvl = 4050,
 		.maint_a_chg_timer_h = 60,
@@ -235,10 +337,12 @@ static const struct battery_type bat_type[] = {
 		.n_temp_tbl_elements = ARRAY_SIZE(temp_tbl),
 		.r_to_t_tbl = temp_tbl,
 #endif
-		.n_v_cap_tbl_elements = ARRAY_SIZE(cap_tbl_5ma),
-		.v_to_cap_tbl = cap_tbl_5ma,
+		.n_v_cap_tbl_elements = ARRAY_SIZE(cap_tbl_5ma_2000ma),
+		.v_to_cap_tbl = cap_tbl_5ma_2000ma,
+		.n_v_res_tbl_elements = ARRAY_SIZE(res_tbl),
+		.v_to_res_tbl = res_tbl,
 		.timeout_chargeoff_time = 21*HZ,	// specification is 25 +/- 5 seconds. 30*HZ ,
-		.initial_timeout_time =HZ*3600*6 ,	//6 hours for first charge attempt
+		.initial_timeout_time = HZ*3600*6 ,
 		.subsequent_timeout_time = HZ*60*90,	//1.5 hours for second and later attempts
 		.error_charge_stoptime = HZ*60,		// After an error stop charging for a minute.
 		.over_voltage_threshold =  4500 ,
@@ -260,15 +364,15 @@ static const struct battery_type bat_type[] = {
 		.resis_high = 15000,	/* 1500 * 1.7 +70% */
 		.resis_low = 0,		/* 1500 * 0.3 -70% */
 		.battery_resistance = 105,
-		.line_impedance = 0,
-		.charge_full_design = 1850,
-		.nominal_voltage = 3700,
+		.line_impedance = 11,
+		.charge_full_design = 2000,
+		.nominal_voltage = 3800,
 		.termination_vol =  4180,
 		.termination_curr_1st = 220,
-		.termination_curr_2nd = 160,
-		.recharge_vol = 4170,		//4130,
-		.normal_cur_lvl = 1200,
-		.normal_vol_lvl = 4200,		/* 4210 */
+		.termination_curr_2nd = 120,
+		.recharge_vol = 4250,
+		.normal_cur_lvl = 1000,
+		.normal_vol_lvl = 4350,		/* 4210 */
 		.maint_a_cur_lvl = 600,
 		.maint_a_vol_lvl = 4150,
 		.maint_a_chg_timer_h = 60,
@@ -284,10 +388,12 @@ static const struct battery_type bat_type[] = {
 		.n_temp_tbl_elements = ARRAY_SIZE(temp_tbl),
 		.r_to_t_tbl = temp_tbl,
 #endif
-		.n_v_cap_tbl_elements = ARRAY_SIZE(cap_tbl_5ma),
-		.v_to_cap_tbl = cap_tbl_5ma,
+		.n_v_cap_tbl_elements = ARRAY_SIZE(cap_tbl_5ma_2000ma),
+		.v_to_cap_tbl = cap_tbl_5ma_2000ma,
+		.n_v_res_tbl_elements = ARRAY_SIZE(res_tbl),
+		.v_to_res_tbl = res_tbl,
 		.timeout_chargeoff_time = 21*HZ,	// specification is 25 +/- 5 seconds. 30*HZ ,
-		.initial_timeout_time =HZ*3600*6 ,	//6 hours for first charge attempt
+		.initial_timeout_time = HZ*3600*6 ,
 		.subsequent_timeout_time = HZ*60*90,	//1.5 hours for second and later attempts
 		.error_charge_stoptime = HZ*60,		// After an error stop charging for a minute.
 		.over_voltage_threshold =  4500 ,
@@ -383,7 +489,7 @@ static const struct ab8500_bm_charger_parameters chg = {
 	*/
 	.ac_volt_max		= 6650,
 	.ac_volt_max_recovery	= 6800,
-	.ac_curr_max		=  900, //1500,
+	.ac_curr_max		=  800,
 };
 
 struct ab8500_bm_data ab8500_bm_data = {
@@ -391,10 +497,10 @@ struct ab8500_bm_data ab8500_bm_data = {
 	.temp_low		= 0,
 	.temp_high		= 40,
 	.temp_over		= 60,
-	.ta_chg_current		= 1200,
-	.ta_chg_voltage		= 4200,
+	.ta_chg_current		= 800,
+	.ta_chg_voltage		= 4350,
 	.usb_chg_current	= 500,
-	.usb_chg_voltage	= 4200,
+	.usb_chg_voltage	= 4350,
 	.main_safety_tmr_h	= 4,
 	.usb_safety_tmr_h	= 4,
 	.bkup_bat_v		= BUP_VCH_SEL_3P1V,

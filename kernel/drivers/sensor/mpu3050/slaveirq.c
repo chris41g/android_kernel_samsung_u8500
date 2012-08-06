@@ -223,6 +223,8 @@ int slaveirq_init(struct i2c_adapter *slave_adapter,
 	data->data_ready = 0;
 	data->timeout = 0;
 
+	init_waitqueue_head(&data->slaveirq_wait);
+
 	res = request_irq(data->irq, slaveirq_handler, IRQF_TRIGGER_RISING,
 			  data->dev.name, data);
 
@@ -241,7 +243,6 @@ int slaveirq_init(struct i2c_adapter *slave_adapter,
 		goto out_misc_register;
 	}
 
-	init_waitqueue_head(&data->slaveirq_wait);
 	return res;
 
 out_misc_register:

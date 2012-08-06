@@ -183,6 +183,7 @@ struct mmci_host {
 
 	unsigned int		mclk;
 	unsigned int		cclk;
+	unsigned int		cclk_desired;
 	u32			pwr;
 	struct mmci_platform_data *plat;
 	struct variant_data	*variant;
@@ -215,7 +216,6 @@ struct mmci_host {
 	/* DMA stuff */
 	bool			dma_enable;
 	bool			dma_on_current_xfer;
-	bool			dma_was_disabled;
 #ifdef CONFIG_DMA_ENGINE
 	struct dma_chan		*dma_rx_channel;
 	struct dma_chan		*dma_tx_channel;

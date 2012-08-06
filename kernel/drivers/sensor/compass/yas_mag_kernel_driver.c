@@ -1488,7 +1488,9 @@ geomagnetic_work(struct yas_mag_data *magdata)
     struct timeval tv;
 #endif
 
+#ifdef CONFIG_MACH_JANICE
 	geomagnetic_manual_offset();
+#endif
 
     if (hwdep_driver.measure == NULL || hwdep_driver.get_offset == NULL) {
         return time_delay_ms;
@@ -1997,3 +1999,4 @@ MODULE_DESCRIPTION("YAS532 Geomagnetic Sensor Driver");
 #endif
 MODULE_LICENSE( "GPL" );
 MODULE_VERSION("4.1.600");
+

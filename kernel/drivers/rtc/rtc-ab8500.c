@@ -58,7 +58,7 @@
 
 #define COUNTS_PER_SEC			(0xF000 / 60)
 #define AB8500_RTC_EPOCH		2012
-#define INTEGRATION_TIME		(10 * 60) /* Used for the deferred work */
+#define AB8500_ALARM_DEBUG		0
 static struct rtc_device *_rtc;
 static int rtc_60s_irq;
 
@@ -162,7 +162,7 @@ static ktime_t rtc_tm_to_ktime(struct rtc_time tm)
 
 static int ab8500_rtc_set_time(struct device *dev, struct rtc_time *tm)
 {
-	int retval, i;
+	int i;
 	struct timespec ts;
 	unsigned char buf[ARRAY_SIZE(ab8500_rtc_time_regs)];
 	unsigned long no_secs, no_mins, secs = 0;
@@ -281,6 +281,10 @@ static int ab8500_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alarm)
 	/* Get the number of seconds since 1970 */
 	rtc_tm_to_time(&alarm->time, &secs);
 
+#if AB8500_ALARM_DEBUG
+	pr_info("ab8500_rtc - alarm time : %ld\n", secs);
+#endif
+
 	retval = ab8500_rtc_read_time(dev, &tm);
 	if (retval < 0)
 		return retval;
@@ -365,13 +369,20 @@ static irqreturn_t rtc_60s_handler(int irq, void *data)
 
 	mutex_lock(&alarm_setrtc_mutex);
 
+	if (!_rtc)
+		goto fail;
+
+
 	if (ab8500_rtc_read_time(_rtc->dev.parent, &rtc_tm))
 		goto fail;
 
 	rtc_now = rtc_tm_to_ktime(rtc_tm);
 
+#if AB8500_ALARM_DEBUG
 	getnstimeofday(&ts);
 	sys_now = timespec_to_ktime(ts);
+	pr_info("ab8500_rtc : sys_now : %.18lld\n", sys_now.tv64);
+#endif
 
 	/* approx. 58ms drift / 1 min */
 	sys_now = ktime_add_us(rtc_now, 60000);
@@ -396,14 +407,6 @@ static int __devinit ab8500_rtc_probe(struct platform_device *pdev)
 	struct rtc_device *rtc;
 	u8 rtc_ctrl;
 	int irq;
-
-	irq = platform_get_irq_byname(pdev, "ALARM");
-	if (irq < 0)
-		return irq;
-
-	rtc_60s_irq = platform_get_irq_byname(pdev, "60S");
-	if (rtc_60s_irq < 0)
-		return rtc_60s_irq;
 
 	/* For RTC supply test */
 	err = abx500_mask_and_set_register_interruptible(&pdev->dev, AB8500_RTC,
@@ -444,20 +447,6 @@ static int __devinit ab8500_rtc_probe(struct platform_device *pdev)
 		return err;
 	}
 
-	err = request_threaded_irq(irq, NULL, rtc_alarm_handler,
-		IRQF_NO_SUSPEND, "ab8500-rtc", rtc);
-	if (err < 0) {
-		rtc_device_unregister(rtc);
-		return err;
-	}
-
-	err = request_threaded_irq(rtc_60s_irq, NULL, rtc_60s_handler,
-		IRQF_SHARED|IRQF_NO_SUSPEND, "ab8500-rtc-60s", rtc);
-	if (err < 0) {
-		rtc_device_unregister(rtc);
-		return err;
-	}
-
 	_rtc = rtc;
 
 #if defined(CONFIG_MACH_JANICE_CHN) || defined(CONFIG_MACH_GAVINI_CHN)
@@ -486,6 +475,28 @@ static int __devinit ab8500_rtc_probe(struct platform_device *pdev)
 #endif
 
 	platform_set_drvdata(pdev, rtc);
+
+	irq = platform_get_irq_byname(pdev, "ALARM");
+	if (irq < 0)
+		return irq;
+
+	err = request_threaded_irq(irq, NULL, rtc_alarm_handler,
+		IRQF_NO_SUSPEND, "ab8500-rtc", rtc);
+	if (err < 0) {
+		rtc_device_unregister(rtc);
+		return err;
+	}
+
+	rtc_60s_irq = platform_get_irq_byname(pdev, "60S");
+	if (rtc_60s_irq < 0)
+		return rtc_60s_irq;
+
+	err = request_threaded_irq(rtc_60s_irq, NULL, rtc_60s_handler,
+		IRQF_SHARED|IRQF_NO_SUSPEND, "ab8500-rtc-60s", rtc);
+	if (err < 0) {
+		rtc_device_unregister(rtc);
+		return err;
+	}
 
 	return 0;
 }

@@ -5,6 +5,14 @@
  * License terms: GNU General Public License (GPL) version 2
  */
 
+#if defined(CONFIG_MACH_CODINA) || defined(CONFIG_MACH_GAVINI)
+#define MMC_HOST_DEBUGGING
+#endif
+
+#ifdef MMC_HOST_DEBUGGING
+#define CHANNEL_OF_CHOICE 0
+#endif
+
 #include <linux/kernel.h>
 #include <linux/dmaengine.h>
 #include <linux/platform_device.h>
@@ -280,6 +288,9 @@ struct d40_chan {
 	enum dma_data_direction		runtime_direction;
 	dma_addr_t			 src_dev_addr;
 	dma_addr_t			 dst_dev_addr;
+#ifdef MMC_HOST_DEBUGGING
+	struct list_head		list;
+#endif
 };
 
 /**
@@ -1904,6 +1915,61 @@ static int d40_free_dma(struct d40_chan *d40c)
 	return 0;
 }
 
+#ifdef MMC_HOST_DEBUGGING
+struct d40_base *_base;
+static void dump_channels(void);
+static bool _kickrx, _kicktx;
+
+void kickrx(void)
+{
+	_kickrx = true;
+}
+
+void kicktx(void)
+{
+	_kicktx = true;
+}
+
+void dump(void)
+{
+	static struct d40_interrupt_lookup il[] = {
+		{D40_DREG_LCTIS0, D40_DREG_LCICR0, false,  0},
+		{D40_DREG_LCTIS1, D40_DREG_LCICR1, false, 32},
+		{D40_DREG_LCTIS2, D40_DREG_LCICR2, false, 64},
+		{D40_DREG_LCTIS3, D40_DREG_LCICR3, false, 96},
+		{D40_DREG_LCEIS0, D40_DREG_LCICR0, true,   0},
+		{D40_DREG_LCEIS1, D40_DREG_LCICR1, true,  32},
+		{D40_DREG_LCEIS2, D40_DREG_LCICR2, true,  64},
+		{D40_DREG_LCEIS3, D40_DREG_LCICR3, true,  96},
+		{D40_DREG_PCTIS,  D40_DREG_PCICR,  false, D40_PHY_CHAN},
+		{D40_DREG_PCEIS,  D40_DREG_PCICR,  true,  D40_PHY_CHAN},
+	};
+	int i;
+
+	for (i = 0; i < ARRAY_SIZE(il); i++)
+		printk("i %d: %#x\n", i, readl(_base->virtbase + il[i].src));
+
+	printk("ACTIVE: %#x\n", readl(_base->virtbase + D40_DREG_ACTIVO));
+	printk("ACTIVO: %#x\n", readl(_base->virtbase + D40_DREG_ACTIVO));
+
+	i = CHANNEL_OF_CHOICE;
+	printk("Channel %d\n", i);
+	printk("SSCFG: %#x\n", readl(_base->virtbase + D40_DREG_PCBASE + i * D40_DREG_PCDELTA + D40_CHAN_REG_SSCFG));
+	printk("SSELT: %#x\n", readl(_base->virtbase + D40_DREG_PCBASE + i * D40_DREG_PCDELTA + D40_CHAN_REG_SSELT));
+	printk("SSPTR: %#x\n", readl(_base->virtbase + D40_DREG_PCBASE + i * D40_DREG_PCDELTA + D40_CHAN_REG_SSPTR));
+	printk("SSLNK: %#x\n", readl(_base->virtbase + D40_DREG_PCBASE + i * D40_DREG_PCDELTA + D40_CHAN_REG_SSLNK));
+
+	printk("SDCFG: %#x\n", readl(_base->virtbase + D40_DREG_PCBASE + i * D40_DREG_PCDELTA + D40_CHAN_REG_SDCFG));
+	printk("SDELT: %#x\n", readl(_base->virtbase + D40_DREG_PCBASE + i * D40_DREG_PCDELTA + D40_CHAN_REG_SDELT));
+	printk("SDPTR: %#x\n", readl(_base->virtbase + D40_DREG_PCBASE + i * D40_DREG_PCDELTA + D40_CHAN_REG_SDPTR));
+	printk("SDLNK: %#x\n", readl(_base->virtbase + D40_DREG_PCBASE + i * D40_DREG_PCDELTA + D40_CHAN_REG_SDLNK));
+
+	dump_channels();
+
+	print_hex_dump(KERN_INFO, "lcla channel " __stringify(CHANNEL_OF_CHOICE)  ": ", DUMP_PREFIX_OFFSET, 16, 4, _base->lcla_pool.base + SZ_1K * CHANNEL_OF_CHOICE, SZ_1K, true);
+}
+#endif
+
 static bool d40_is_paused(struct d40_chan *d40c)
 {
 	bool is_paused = false;
@@ -2112,6 +2178,11 @@ static void d40_set_prio_realtime(struct d40_chan *d40c)
 		__d40_set_prio_rt(d40c, d40c->dma_cfg.dst_dev_type, false);
 }
 
+#ifdef MMC_HOST_DEBUGGING
+static DEFINE_SPINLOCK(list_lock);
+static LIST_HEAD(list);
+#endif
+
 /* DMA ENGINE functions */
 static int d40_alloc_chan_resources(struct dma_chan *chan)
 {
@@ -2164,7 +2235,7 @@ static int d40_alloc_chan_resources(struct dma_chan *chan)
 				D40_LCPA_CHAN_SIZE + D40_LCPA_CHAN_DST_DELTA;
 	}
 
-	dev_dbg(chan2dev(d40c), "allocated %s channel (phy %d%s)\n",
+	dev_info(chan2dev(d40c), "allocated %s channel (phy %d%s)\n",
 		 chan_is_logical(d40c) ? "logical" : "physical",
 		 d40c->phy_chan->num,
 		 d40c->dma_cfg.use_fixed_channel ? ", fixed" : "");
@@ -2181,6 +2252,11 @@ static int d40_alloc_chan_resources(struct dma_chan *chan)
 fail:
 	d40_usage_dec(d40c);
 	spin_unlock_irqrestore(&d40c->lock, flags);
+#ifdef MMC_HOST_DEBUGGING
+	spin_lock(&list_lock);
+	list_add_tail(&d40c->list, &list);
+	spin_unlock(&list_lock);
+#endif
 	return err;
 }
 
@@ -2197,6 +2273,12 @@ static void d40_free_chan_resources(struct dma_chan *chan)
 		return;
 	}
 
+#ifdef MMC_HOST_DEBUGGING
+	spin_lock(&list_lock);
+	list_del(&d40c->list);
+	spin_unlock(&list_lock);
+#endif
+
 	spin_lock_irqsave(&d40c->lock, flags);
 
 	err = d40_free_dma(d40c);
@@ -2206,6 +2288,77 @@ static void d40_free_chan_resources(struct dma_chan *chan)
 			"[%s] Failed to free channel\n", __func__);
 	spin_unlock_irqrestore(&d40c->lock, flags);
 }
+
+#ifdef MMC_HOST_DEBUGGING
+static void __dump_descs(const char *name, struct list_head *list)
+{
+	struct d40_desc *desc;
+	int i;
+
+	list_for_each_entry(desc, list, node) {
+		struct d40_log_lli_bidir *lli = &desc->lli_log;
+
+		for (i = 0; i < desc->lli_len; i++) {
+			printk("%s: src lcsp02 %#x\n", name, lli->src[i].lcsp02);
+			printk("%s: src lcsp13 %#x\n", name, lli->src[i].lcsp13);
+			printk("%s: dst lcsp02 %#x\n", name, lli->dst[i].lcsp02);
+			printk("%s: dst lcsp13 %#x\n", name, lli->dst[i].lcsp13);
+		}
+	}
+}
+
+static dma_addr_t d40_dev_rx_addr(struct d40_chan *d40c);
+static dma_addr_t d40_dev_tx_addr(struct d40_chan *d40c);
+
+static void __dump_channel(struct d40_chan *chan)
+{
+	struct device *dev = chan2dev(chan);
+
+	if (chan->phy_chan->num != CHANNEL_OF_CHOICE)
+	       return;
+
+	dev_info(dev, "busy: %d\n", chan->busy);
+	dev_info(dev, "log_num: %d\n", chan->log_num);
+	dev_info(dev, "phy_chan->num: %d\n", chan->phy_chan->num);
+	dev_info(dev, "pending_tx: %d\n", chan->pending_tx);
+	dev_info(dev, "completed: %d\n", chan->completed);
+
+	if (chan->dma_cfg.src_dev_type != -1)
+		dev_info(dev, "rx_addr: %#x\n", d40_dev_rx_addr(chan));
+
+	if (chan->dma_cfg.dst_dev_type != -1)
+		dev_info(dev, "tx_addr: %#x\n", d40_dev_tx_addr(chan));
+
+	dev_info(dev, "lcpa lcsp0: %#x\n", chan->lcpa->lcsp0);
+	dev_info(dev, "lcpa lcsp1: %#x\n", chan->lcpa->lcsp1);
+	dev_info(dev, "lcpa lcsp2: %#x\n", chan->lcpa->lcsp2);
+	dev_info(dev, "lcpa lcsp3: %#x\n", chan->lcpa->lcsp3);
+
+	__dump_descs("queue", &chan->queue);
+	__dump_descs("active", &chan->active);
+	__dump_descs("done", &chan->done);
+	__dump_descs("client", &chan->client);
+
+	dev_info(dev, "phy: SSLNK: %#x\n",
+	readl(chan->base->virtbase + D40_DREG_PCBASE + chan->phy_chan->num * D40_DREG_PCDELTA + D40_CHAN_REG_SSLNK));
+	dev_info(dev, "phy: SDLNK: %#x\n",
+	readl(chan->base->virtbase + D40_DREG_PCBASE + chan->phy_chan->num * D40_DREG_PCDELTA + D40_CHAN_REG_SDLNK));
+}
+
+static void dump_channels(void)
+{
+	struct d40_chan *chan, *temp;
+
+	list_for_each_entry_safe(chan, temp, &list, list) {
+		unsigned long flags;
+
+		spin_lock_irqsave(&chan->lock, flags);
+		__dump_channel(chan);
+		spin_unlock_irqrestore(&chan->lock, flags);
+	}
+
+}
+#endif
 
 static struct dma_async_tx_descriptor *d40_prep_memcpy(struct dma_chan *chan,
 						       dma_addr_t dst,
@@ -3735,7 +3888,9 @@ static int __init d40_probe(struct platform_device *pdev)
 	spin_lock_irqsave(&base->usage_lock, flags);
 	base->usage--;
 	spin_unlock_irqrestore(&base->usage_lock, flags);
-
+#ifdef MMC_HOST_DEBUGGING
+	_base = base;
+#endif
 	dev_info(base->dev, "initialized\n");
 	return 0;
 

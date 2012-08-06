@@ -237,7 +237,7 @@ int accsns_activate(int flgatm, int flg, int dtime)
 #endif
 		}
 		buf[0] = ACC_CTR1;
-		buf[1] = 0x4f;
+		buf[1] = 0x9f;
 		/*
 		 * 0x67 - 200Hz
 		 * 0x57 - 100Hz
@@ -508,7 +508,7 @@ static int accsns_probe(struct i2c_client *client,
 	sensors_register(acc_device, NULL, acc_attrs, "accelerometer_sensor");
 
 	atomic_set(&flgEna, 0);
-	atomic_set(&delay, 100);
+	atomic_set(&delay, 200);
 
 	pr_info("%s: success.\n", __func__);
 	return 0;

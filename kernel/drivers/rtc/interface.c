@@ -312,7 +312,7 @@ int rtc_set_alarm(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 }
 EXPORT_SYMBOL_GPL(rtc_set_alarm);
 
-#if defined(CONFIG_MACH_JANICE_CHN)
+#if defined(CONFIG_MACH_JANICE_CHN) || defined(CONFIG_MACH_GAVINI_CHN)
 int rtc_set_alarm_boot(struct rtc_device *rtc, struct rtc_wkalrm *alarm)
 {
 	int err;

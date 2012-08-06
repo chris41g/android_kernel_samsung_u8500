@@ -1653,3 +1653,20 @@ source "security/Kconfig"
 source "crypto/Kconfig"
 
 source "lib/Kconfig"
+
+#######################################################
+#[ LTN_SCM 2012.01.25 GAVINI Kernel feature
+config LTN_COMMON
+	bool "select Latin common"
+	default n
+	help
+         Support Latin common
+
+config GAVINI_LTN_COMMON
+	bool "select Latin GAVINI common"
+	default n
+	help
+         Support Latin GAVINI common
+
+#] LTN_SCM 2012.01.25 CODINA Kernel feature
+#######################################################

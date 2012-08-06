@@ -1904,6 +1904,7 @@ static void ab8500_chargalg_algorithm(struct ab8500_chargalg *di)
 		di->bat->bat_type[di->bat->batt_id].timeout_chargeoff_time;
 		ab8500_chargalg_stop_charging(di);
 		ab8500_chargalg_state_to(di, STATE_CHARGE_TIMEOUT);
+		dev_info(di->dev, "CHARGE TIMED OUT\n");
 		break ;
 
 	case STATE_CHARGE_TIMEOUT:

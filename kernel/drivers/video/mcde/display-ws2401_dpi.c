@@ -30,6 +30,7 @@
 #include <linux/kernel.h>
 #include <linux/lcd.h>
 #include <linux/backlight.h>
+#include <linux/spinlock.h>
 #include <linux/mutex.h>
 #include <linux/workqueue.h>
 #ifdef CONFIG_HAS_EARLYSUSPEND
@@ -42,6 +43,9 @@
 #include <video/mcde_display-dpi.h>
 #include <video/mcde_display_ssg_dpi.h>
 #include <video/ktd259x_bl.h>
+
+extern unsigned int lcd_type;
+
 #define TRUE  1
 #define FALSE 0
 
@@ -63,6 +67,23 @@
 #define MAX_BRIGHTNESS		255
 #define DEFAULT_BRIGHTNESS	150
 
+/*SHARP*/
+#define DCS_CMD_SHARP_SLPIN	0x10
+#define DCS_CMD_SHARP_SLPOUT	0x11
+#define DCS_CMD_SHARP_DISPOFF	0x28
+#define DCS_CMD_SHARP_DISPON	0x29
+#define DCS_CMD_SHARP_PLEVEL2	0xF0
+#define DCS_CMD_SHARP_PLEVEL2_E	0xF0
+#define DCS_CMD_SHARP_RESOL	0xB3
+#define DCS_CMD_SHARP_PANELCTL2	0xB4
+#define DCS_CMD_SHARP_MANPWR	0xF3
+#define DCS_CMD_SHARP_DISPCTL	0xF2
+#define DCS_CMD_SHARP_PWRCTL1	0xF4
+#define DCS_CMD_SHARP_SRCCTL	0xF6
+#define DCS_CMD_SHARP_PANELCTL	0xF7
+
+
+/*WIDECHIPS*/
 #define DCS_CMD_COLMOD		0x3A	/* Set Pixel Format */
 #define DCS_CMD_WS2401_RESCTL	0xB8	/* Resolution Select Control */
 #define DCS_CMD_WS2401_PSMPS	0xBD	/* SMPS Positive Control */
@@ -106,6 +127,8 @@ struct ws2401_dpi {
 	struct device				*dev;
 	struct spi_device			*spi;
 	struct mutex				lock;
+	struct mutex				dev_lock;
+	spinlock_t				spin_lock;
 	unsigned int				beforepower;
 	unsigned int				power;
 	unsigned int				current_ratio;
@@ -138,6 +161,103 @@ struct ws2401_dpi {
 #ifdef ESD_TEST
 struct ws2401_dpi *pdpi;
 #endif
+
+/*SHARP*/
+static const u8 DCS_CMD_SEQ_SHARP_INIT[] = {
+/*	Length	Command				Parameters */
+	3,	DCS_CMD_SHARP_PLEVEL2,		0x5A,
+						0x5A,
+	2,	DCS_CMD_SHARP_RESOL,		0x22,
+	9,	DCS_CMD_SHARP_PANELCTL2,	0x00,
+						0x02,
+						0x03,
+						0x04,
+						0x05,
+						0x08,
+						0x00,
+						0x0C,
+	8,	DCS_CMD_SHARP_MANPWR,		0x01,
+						0x00,
+						0x00,
+						0x08,
+						0x08,
+						0x02,
+						0x00,
+	8,	DCS_CMD_SHARP_DISPCTL,		0x19,
+						0x00,
+						0x08,
+						0x0D,
+						0x03,
+						0x41,
+						0x3F,
+	11,	DCS_CMD_SHARP_PWRCTL1,		0x00,
+						0x00,
+						0x00,
+						0x00,
+						0x55,
+						0x44,
+						0x05,
+						0x88,
+						0x4B,
+						0x50,
+	7,	DCS_CMD_SHARP_SRCCTL,		0x03,
+						0x09,
+						0x8A,
+						0x00,
+						0x01,
+						0x16,
+	25,	DCS_CMD_SHARP_PANELCTL,		0x00,
+						0x05,
+						0x06,
+						0x07,
+						0x08,
+						0x01,
+						0x09,
+						0x0D,
+						0x0A,
+						0x0E,
+						0x0B,
+						0x0F,
+						0x0C,
+						0x10,
+						0x01,
+						0x11,
+						0x12,
+						0x13,
+						0x14,
+						0x05,
+						0x06,
+						0x07,
+						0x08,
+						0x01,
+	3,	DCS_CMD_SHARP_PLEVEL2,		0xA5,
+						0xA5,
+
+	DCS_CMD_SEQ_END
+};
+
+static const u8 DCS_CMD_SHARP_SET_SLPOUT[] = {
+	1,	DCS_CMD_SHARP_SLPOUT,
+	DCS_CMD_SEQ_END
+};
+
+static const u8 DCS_CMD_SHARP_SET_DISPON[] = {
+	1,	DCS_CMD_SHARP_DISPON,
+	DCS_CMD_SEQ_END
+};
+
+static const u8 DCS_CMD_SHARP_SET_DISPOFF[] = {
+	1,	DCS_CMD_SHARP_DISPOFF,
+	DCS_CMD_SEQ_END
+};
+
+static const u8 DCS_CMD_SHARP_SET_SLPIN[] = {
+	1,	DCS_CMD_SHARP_SLPIN,
+	DCS_CMD_SEQ_END
+};
+
+
+/*WIDECHIPS*/
 static const u8 DCS_CMD_SEQ_WS2401_INIT[] = {
 /*	Length	Command				Parameters */
 	3,	DCS_CMD_WS2401_PASSWD1,		0x5A,	/* Unlock L2 Cmds */
@@ -195,110 +315,111 @@ static const u8 DCS_CMD_SEQ_WS2401_INIT[] = {
 static const u8 DCS_CMD_SEQ_WS2401_GAMMA_SET[] = {
 
 	18,	DCS_CMD_WS2401_GAMMA_R1,	0x00,	/*RED1*/
-						0x4F,
+						0x5B,
+						0x42,
+						0x41,
+						0x3F,
+						0x42,
 						0x3D,
 						0x38,
-						0x38,
-						0x3B,
-						0x37,
-						0x34,
+						0x2E,
 						0x2B,
-						0x28,
-						0x28,
-						0x26,
+						0x2A,
+						0x27,
 						0x22,
-						0x25,
-						0x16,
-						0x03,
+						0x27,
+						0x0F,
 						0x00,
+						0x00,
+
 	18,	DCS_CMD_WS2401_GAMMA_R2,	0x00,	/*RED2*/
-						0x4F,
+						0x5B,
+						0x42,
+						0x41,
+						0x3F,
+						0x42,
 						0x3D,
 						0x38,
-						0x38,
-						0x3B,
-						0x37,
-						0x34,
+						0x2E,
 						0x2B,
-						0x28,
-						0x28,
-						0x26,
+						0x2A,
+						0x27,
 						0x22,
+						0x27,
+						0x0F,
+						0x00,
+						0x00,
+
+	18,	DCS_CMD_WS2401_GAMMA_G1,	0x00,	/*GREEN1*/
+						0x59,
+						0x40,
+						0x3F,
+						0x3E,
+						0x41,
+						0x3D,
+						0x39,
+						0x2F,
+						0x2C,
+						0x2B,
+						0x29,
 						0x25,
-						0x16,
-						0x03,
+						0x29,
+						0x19,
+						0x08,
 						0x00,
 
-	18,	DCS_CMD_WS2401_GAMMA_G1,	0x08,	/*GREEN1*/
-						0x4D,
-						0x3C,
-						0x38,
-						0x3B,
+	18,	DCS_CMD_WS2401_GAMMA_G2,	0x00,	/*GREEN2*/
+						0x59,
+						0x40,
+						0x3F,
+						0x3E,
+						0x41,
 						0x3D,
-						0x3A,
-						0x35,
+						0x39,
+						0x2F,
 						0x2C,
+						0x2B,
 						0x29,
+						0x25,
 						0x29,
-						0x27,
-						0x24,
-						0x28,
-						0x1A,
-						0x0E,
-						0x00,
-
-	18,	DCS_CMD_WS2401_GAMMA_G2,	0x08,	/*GREEN2*/
-						0x4D,
-						0x3C,
-						0x38,
-						0x3B,
-						0x3D,
-						0x3A,
-						0x35,
-						0x2C,
-						0x29,
-						0x29,
-						0x27,
-						0x24,
-						0x28,
-						0x1A,
-						0x0E,
+						0x19,
+						0x08,
 						0x00,
 
 	18,	DCS_CMD_WS2401_GAMMA_B1,	0x00,	/*BLUE*/
-						0x4B,
-						0x39,
-						0x34,
-						0x39,
-						0x3C,
-						0x39,
-						0x34,
+						0x57,
+						0x3B,
+						0x3A,
+						0x3B,
+						0x3F,
+						0x3B,
+						0x38,
 						0x27,
-						0x2F,
-						0x25,
-						0x21,
-						0x1A,
-						0x28,
-						0x00,
-						0x00,
+						0x38,
+						0x2A,
+						0x26,
+						0x22,
+						0x34,
+						0x0C,
+						0x09,
 						0x00,
 
 	18,	DCS_CMD_WS2401_GAMMA_B2,	0x00,	/*BLUE*/
-						0x4B,
-						0x39,
-						0x34,
-						0x39,
-						0x3C,
-						0x39,
-						0x34,
+						0x57,
+						0x3B,
+						0x3A,
+						0x3B,
+						0x3F,
+						0x3B,
+						0x38,
 						0x27,
-						0x2F,
-						0x25,
-						0x21,
-						0x1A,
-						0x28,
-						0x00,
-						0x00,
+						0x38,
+						0x2A,
+						0x26,
+						0x22,
+						0x34,
+						0x0C,
+						0x09,
 						0x00,
 	DCS_CMD_SEQ_END
 };
@@ -592,22 +713,37 @@ static int ws2401_dpi_ldi_init(struct ws2401_dpi *lcd)
 {
 	int ret;
 
-	ret = ws2401_write_dcs_sequence(lcd,
-				DCS_CMD_SEQ_WS2401_EXIT_SLEEP_MODE);
+	mutex_lock(&lcd->dev_lock);
+	if (lcd_type == 8) {
 
-	if (lcd->pd->sleep_out_delay)
-		msleep(lcd->pd->sleep_out_delay);
+		ret = ws2401_write_dcs_sequence(lcd,
+					DCS_CMD_SHARP_SET_SLPOUT);
 
-	ret |= ws2401_write_dcs_sequence(lcd, DCS_CMD_SEQ_WS2401_INIT);
+		if (lcd->pd->sleep_out_delay)
+			msleep(lcd->pd->sleep_out_delay);
 
-	ret |= ws2401_write_dcs_sequence(lcd, DCS_CMD_SEQ_WS2401_GAMMA_SET);
+		ret |= ws2401_write_dcs_sequence(lcd, DCS_CMD_SEQ_SHARP_INIT);
 
-	if (lcd->pd->bl_ctrl)
-		ret |= ws2401_write_dcs_sequence(lcd,
-				DCS_CMD_SEQ_WS2401_DISABLE_BACKLIGHT_CONTROL);
-	else
-		ret |= ws2401_write_dcs_sequence(lcd,
-				DCS_CMD_SEQ_WS2401_DISABLE_BACKLIGHT_CONTROL);
+	} else {
+		ret = ws2401_write_dcs_sequence(lcd,
+					DCS_CMD_SEQ_WS2401_EXIT_SLEEP_MODE);
+
+		if (lcd->pd->sleep_out_delay)
+			msleep(lcd->pd->sleep_out_delay);
+
+		ret |= ws2401_write_dcs_sequence(lcd, DCS_CMD_SEQ_WS2401_INIT);
+
+		ret |= ws2401_write_dcs_sequence(lcd, DCS_CMD_SEQ_WS2401_GAMMA_SET);
+
+		if (lcd->pd->bl_ctrl)
+			ret |= ws2401_write_dcs_sequence(lcd,
+					DCS_CMD_SEQ_WS2401_DISABLE_BACKLIGHT_CONTROL);
+		else
+			ret |= ws2401_write_dcs_sequence(lcd,
+					DCS_CMD_SEQ_WS2401_DISABLE_BACKLIGHT_CONTROL);
+
+	}
+	mutex_unlock(&lcd->dev_lock);
 
 	return ret;
 }
@@ -617,7 +753,13 @@ static int ws2401_dpi_ldi_enable(struct ws2401_dpi *lcd)
 	int ret = 0;
 	dev_dbg(lcd->dev, "ws2401_dpi_ldi_enable\n");
 
-	ret |= ws2401_write_dcs_sequence(lcd, DCS_CMD_SEQ_WS2401_DISPLAY_ON);
+	mutex_lock(&lcd->dev_lock);
+	if (lcd_type == 8)
+		ret |= ws2401_write_dcs_sequence(lcd, DCS_CMD_SHARP_SET_DISPON);
+	else
+		ret |= ws2401_write_dcs_sequence(lcd, DCS_CMD_SEQ_WS2401_DISPLAY_ON);
+
+	mutex_unlock(&lcd->dev_lock);
 
 	if (!ret)
 		lcd->ldi_state = LDI_STATE_ON;
@@ -630,13 +772,23 @@ static int ws2401_dpi_ldi_disable(struct ws2401_dpi *lcd)
 	int ret = 0;
 
 	dev_dbg(lcd->dev, "ws2401_dpi_ldi_disable\n");
-	ret |= ws2401_write_dcs_sequence(lcd,
-				DCS_CMD_SEQ_WS2401_DISPLAY_OFF);
-	ret |= ws2401_write_dcs_sequence(lcd,
-				DCS_CMD_SEQ_WS2401_ENTER_SLEEP_MODE);
 
+	mutex_lock(&lcd->dev_lock);
+	if (lcd_type == 8) {
+		ret |= ws2401_write_dcs_sequence(lcd,
+					DCS_CMD_SHARP_SET_DISPOFF);
+		ret |= ws2401_write_dcs_sequence(lcd,
+					DCS_CMD_SHARP_SET_SLPIN);
+	} else {
+		ret |= ws2401_write_dcs_sequence(lcd,
+					DCS_CMD_SEQ_WS2401_DISPLAY_OFF);
+		ret |= ws2401_write_dcs_sequence(lcd,
+					DCS_CMD_SEQ_WS2401_ENTER_SLEEP_MODE);
+	}
 	if (lcd->pd->sleep_in_delay)
 		msleep(lcd->pd->sleep_in_delay);
+
+	mutex_unlock(&lcd->dev_lock);
 
 	if (!ret)
 		lcd->ldi_state = LDI_STATE_OFF;
@@ -648,6 +800,7 @@ static int ws2401_update_brightness(struct ws2401_dpi *lcd)
 {
 	int ret = 0;
 	int newCurrentRatio;
+	unsigned long flags;
 	unsigned int brightness = lcd->bd->props.brightness;
 	int currentRatio  = lcd->current_ratio;
 
@@ -662,11 +815,12 @@ static int ws2401_update_brightness(struct ws2401_dpi *lcd)
 		}
 		mutex_lock(&lcd->lock);
 
-		/* printk("backlight value =[%d]\n",brightness);*/
 		for (newCurrentRatio = KTD259_MAX_CURRENT_RATIO; newCurrentRatio > KTD259_BACKLIGHT_OFF; newCurrentRatio--) {
 			if (brightness > Codina_ktd259CurrentRatioTable[newCurrentRatio - 1])
 				break;
 		}
+		dev_info(lcd->dev, "brightness=%d, new_bl=%d, old_bl=%d\n",
+				brightness, newCurrentRatio, currentRatio);
 
 		if (newCurrentRatio > KTD259_MAX_CURRENT_RATIO)
 			newCurrentRatio = KTD259_MAX_CURRENT_RATIO;
@@ -687,6 +841,8 @@ static int ws2401_update_brightness(struct ws2401_dpi *lcd)
 					currentRatio = KTD259_MAX_CURRENT_RATIO;
 				}
 
+				spin_lock_irqsave(&lcd->spin_lock, flags);
+
 				while (currentRatio != newCurrentRatio) {
 					gpio_set_value(dpd->bl_en_gpio, 0);
 					ndelay(T_LOW_NS);
@@ -701,6 +857,7 @@ static int ws2401_update_brightness(struct ws2401_dpi *lcd)
 				else
 					currentRatio--;
 				}
+				spin_unlock_irqrestore(&lcd->spin_lock, flags);
 			}
 			lcd->current_ratio = newCurrentRatio;
 		}
@@ -913,8 +1070,6 @@ static int ws2401_dpi_set_brightness(struct backlight_device *bd)
 
 	if ((lcd->ldi_state) && (lcd->bd_enable) && (lcd->pd->bl_ctrl)) {
 		ret = ws2401_update_brightness(lcd);
-		dev_info(lcd->dev, "brightness=%d, bl=%d\n",
-			bd->props.brightness, lcd->bl);
 		if (ret < 0)
 			dev_err(&bd->dev, "update brightness failed.\n");
 	}
@@ -1119,6 +1274,9 @@ static int __devinit ws2401_dpi_mcde_panel_probe(
 		return -ENOMEM;
 
 	mutex_init(&lcd->lock);
+	mutex_init(&lcd->dev_lock);
+
+	spin_lock_init(&lcd->spin_lock);
 
 	dev_set_drvdata(&ddev->dev, lcd);
 	lcd->mdd = ddev;
@@ -1142,8 +1300,6 @@ static int __devinit ws2401_dpi_mcde_panel_probe(
 			"failed to add panel_id sysfs entries\n");
 	}
 #endif
-
-	mutex_init(&lcd->lock);
 
 	if (pdata->bl_ctrl) {
 		bd = backlight_device_register("pwm-backlight",
@@ -1182,13 +1338,12 @@ static int __devinit ws2401_dpi_mcde_panel_probe(
 	lcd->earlysuspend.resume  = ws2401_dpi_mcde_panel_late_resume;
 	register_early_suspend(&lcd->earlysuspend);
 #endif
-	ws2401_update_brightness(lcd);
-
+#if 0
 	if (prcmu_qos_add_requirement(PRCMU_QOS_APE_OPP,
 			"codina_lcd_dpi", 100)) {
 		pr_info("pcrm_qos_add APE failed\n");
 	}
-
+#endif
 	dev_dbg(&ddev->dev, "DPI display probed\n");
 
 	goto out;
@@ -1198,6 +1353,8 @@ out_backlight_unregister:
 		backlight_device_unregister(bd);
 out_free_lcd:
 	mutex_destroy(&lcd->lock);
+	mutex_destroy(&lcd->dev_lock);
+
 	kfree(lcd);
 invalid_port_type:
 no_pdata:
@@ -1331,9 +1488,10 @@ static void ws2401_dpi_mcde_panel_early_suspend(
 	#endif
 
 	ws2401_dpi_mcde_panel_suspend(lcd->mdd, dummy);
-
+#if 0
 	prcmu_qos_remove_requirement(PRCMU_QOS_APE_OPP,
 				"codina_lcd_dpi");
+#endif
 }
 
 static void ws2401_dpi_mcde_panel_late_resume(
@@ -1347,12 +1505,12 @@ static void ws2401_dpi_mcde_panel_late_resume(
 	if (lcd->lcd_connected)
 		enable_irq(GPIO_TO_IRQ(lcd->esd_port));
 	#endif
-
+#if 0
 	if (prcmu_qos_add_requirement(PRCMU_QOS_APE_OPP,
 			"codina_lcd_dpi", 100)) {
 		pr_info("pcrm_qos_add APE failed\n");
 	}
-
+#endif
 	ws2401_dpi_mcde_panel_resume(lcd->mdd);
 
 	if (lcd->pd->bl_ctrl)

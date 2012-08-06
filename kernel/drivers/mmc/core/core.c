@@ -319,7 +319,10 @@ void mmc_wait_for_req(struct mmc_host *host, struct mmc_request *mrq)
 		msecs_to_jiffies(10000))) {
 		host->ops->dump_regs(host);
 		dump_mmc_ios(host);
-
+#ifdef MMC_HOST_DEBUGGING
+		extern void dump(void);
+		dump();
+#endif
 		if (host->ops->abort_request) {
 			/* Power off */
 			ret = mmc_power_save_host(host);

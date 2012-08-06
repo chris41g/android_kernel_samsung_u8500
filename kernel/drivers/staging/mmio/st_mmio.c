@@ -167,6 +167,7 @@ static void mmio_set_gpio(struct mmio_platform_data *pdata, int high, int index)
 static struct mmio_info *info;
 
 static int mmio_activate_i2c2(struct mmio_info *info, unsigned long enable);
+static int mmio_cam_power_pin_control(int pin, int on);
 
 static int mmio_cam_pwr_sensor(struct mmio_info *info, int on)
 {
@@ -198,7 +199,7 @@ static int mmio_cam_pwr_sensor(struct mmio_info *info, int on)
 
 	/* working at MMIO_Camera.cpp */
 	dev_dbg(info->dev, "mmio_cam_pwr_sensor %d\n", on);
-#if defined(CONFIG_MACH_JANICE) || defined(CONFIG_MACH_CODINA) || defined(CONFIG_MACH_GAVINI)
+#if defined(CONFIG_MACH_JANICE) ||  defined(CONFIG_MACH_GAVINI)
 	if (on) {
 		mmio_cam_control_clocks(info, false);
 		mmio_set_gpio(info->pdata, 0, PRIMARY_CAMERA_RESET);
@@ -218,80 +219,119 @@ static int mmio_cam_pwr_sensor(struct mmio_info *info, int on)
 		mmio_set_gpio(info->pdata, 0, SECONDARY_CAMERA_STBY);
 		mmio_cam_control_clocks(info, false);
 	}
-#else				/*for gavini */
+#elif defined(CONFIG_MACH_CODINA)
 	if (on) {
-		err = info->pdata->power_enable(info->pdata);
-
-		mdelay(CLOCK_ENABLE_DELAY);
-		subPMIC_PowerOn(0x0);
-		msleep(10);
-		err = mmio_activate_i2c2(info, MMIO_ACTIVATE_I2C_HOST);
-		msleep(20);
-		if (err)
-			printk(KERN_ERR
-			       "Encountered error while powering on sensor,"
-			       "err = %d\n", err);
-
-		if (info->pdata->camera_slot == PRIMARY_CAMERA) {
-			mmio_set_gpio(info->pdata, 1, SECONDARY_CAMERA_STBY);
-			udelay(10);
-			mmio_cam_control_clocks(info, true);
-			udelay(80);
-			mmio_set_gpio(info->pdata, 1, SECONDARY_CAMERA_RESET);
-			msleep(170);
-			mmio_set_gpio(info->pdata, 0, SECONDARY_CAMERA_STBY);
-			udelay(20);
-			subPMIC_PowerOn(0x1);
-			msleep(10);
-			mmio_set_gpio(info->pdata, 1, PRIMARY_CAMERA_RESET);
-			udelay(30);
-			mmio_set_gpio(info->pdata, 1, PRIMARY_CAMERA_STBY);
-			udelay(100);
-		} else {
-			mmio_set_gpio(info->pdata, 1, SECONDARY_CAMERA_STBY);
-			udelay(10);
-			mmio_cam_control_clocks(info, true);
-			udelay(80);
-			mmio_set_gpio(info->pdata, 1, SECONDARY_CAMERA_RESET);
-			udelay(50);
-		}
-
-		subPMIC_PowerOn(0xff);
-
-	} else {
-
-		subPMIC_PowerOff(0x0);
-
-		if (info->pdata->camera_slot == PRIMARY_CAMERA) {
-			mmio_set_gpio(info->pdata, 0, PRIMARY_CAMERA_STBY);
-			mdelay(120);
-			mmio_set_gpio(info->pdata, 0, PRIMARY_CAMERA_RESET);
-			udelay(100);
-			mmio_cam_control_clocks(info, false);
-			udelay(100);
-			mmio_set_gpio(info->pdata, 0, SECONDARY_CAMERA_RESET);
-			udelay(10);
-		} else {
-			mmio_set_gpio(info->pdata, 0, SECONDARY_CAMERA_RESET);
-			udelay(80);
-			mmio_set_gpio(info->pdata, 0, SECONDARY_CAMERA_STBY);
-			udelay(10);
-			mmio_cam_control_clocks(info, false);
-			udelay(10);
-		}
-
+		mmio_cam_control_clocks(info, false);
 		mmio_set_gpio(info->pdata, 0, PRIMARY_CAMERA_RESET);
 		mmio_set_gpio(info->pdata, 0, PRIMARY_CAMERA_STBY);
 		mmio_set_gpio(info->pdata, 0, SECONDARY_CAMERA_RESET);
 		mmio_set_gpio(info->pdata, 0, SECONDARY_CAMERA_STBY);
-
-		err = mmio_activate_i2c2(info, MMIO_DEACTIVATE_I2C);
-		msleep(20);
-		subPMIC_PowerOff(0xff);
-		msleep(10);
-		info->pdata->power_disable(info->pdata);
-
+		err = info->pdata->power_enable(info->pdata);
 		mdelay(CLOCK_ENABLE_DELAY);
+		subPMIC_PowerOn(0x0);
+
+		if (info->pdata->camera_slot == PRIMARY_CAMERA) {
+			/* Sensor AVDD 2.8V On*/
+			mmio_cam_power_pin_control(0x4, 1);
+			udelay(1);
+			/* VT VGA Core 1.5V On*/
+			mmio_cam_power_pin_control(0x1, 1);
+			udelay(1)	;
+			/* Sensor I/O  1.8V On*/
+			mmio_cam_power_pin_control(0x2, 1);
+			udelay(10);
+			/*	AF On*/
+			mmio_cam_power_pin_control(0x3, 1);
+			udelay(20);
+
+			mmio_set_gpio(info->pdata, 1, SECONDARY_CAMERA_STBY);
+			udelay(50);
+			mmio_cam_control_clocks(info, true);
+			msleep(10);
+			mmio_set_gpio(info->pdata, 1, SECONDARY_CAMERA_RESET);
+			msleep(4);
+			mmio_set_gpio(info->pdata, 0, SECONDARY_CAMERA_STBY);
+			udelay(10);
+			/*	5M Core 1.2V, Buck On*/
+			mmio_cam_power_pin_control(0x0, 1);
+			msleep(10);
+			mmio_set_gpio(info->pdata, 1, PRIMARY_CAMERA_STBY);
+			msleep(10);
+			mmio_set_gpio(info->pdata, 1, PRIMARY_CAMERA_RESET);
+			msleep(10);
+		} else {
+			/* Sensor AVDD 2.8V On*/
+			mmio_cam_power_pin_control(0x4, 1);
+			udelay(1);
+			/* VT VGA Core 1.5V On*/
+			mmio_cam_power_pin_control(0x1, 1);
+			udelay(1);
+			/* Sensor I/O  1.8V On*/
+			mmio_cam_power_pin_control(0x2, 1);
+			udelay(1);
+			/*	5M Core 1.2V, Buck On*/
+			mmio_cam_power_pin_control(0x0, 1);
+			msleep(15);
+			/*	5M Core 1.2V, Buck Off*/
+			mmio_cam_power_pin_control(0x0, 0);
+			msleep(2);
+			mmio_cam_control_clocks(info, true);
+			msleep(10);
+			mmio_set_gpio(info->pdata, 1, SECONDARY_CAMERA_STBY);
+			msleep(10);
+			mmio_set_gpio(info->pdata, 1, SECONDARY_CAMERA_RESET);
+			msleep(10);
+		}
+
+	} else {
+		if (info->pdata->camera_slot == PRIMARY_CAMERA) {
+			mmio_set_gpio(info->pdata, 0, PRIMARY_CAMERA_RESET);
+			msleep(4);
+			mmio_cam_control_clocks(info, false);
+			msleep(10);
+			mmio_set_gpio(info->pdata, 0, PRIMARY_CAMERA_STBY);
+			udelay(20);
+			mmio_set_gpio(info->pdata, 0, SECONDARY_CAMERA_RESET);
+			udelay(10);
+			/*	AF Off*/
+			mmio_cam_power_pin_control(0x3, 0);
+			udelay(2);
+			/*	5M Core 1.2V, Buck Off*/
+			mmio_cam_power_pin_control(0x0, 0);
+			udelay(1);
+			/* Sensor I/O  1.8V Off*/
+			mmio_cam_power_pin_control(0x2, 0);
+			udelay(1);
+			/* VT VGA Core 1.5V Off*/
+			mmio_cam_power_pin_control(0x1, 0);
+			udelay(1);
+			/* Sensor AVDD 2.8V Off*/
+			mmio_cam_power_pin_control(0x4, 0);
+		} else {
+			mmio_set_gpio(info->pdata, 0, SECONDARY_CAMERA_RESET);
+			udelay(20);
+			mmio_set_gpio(info->pdata, 0, SECONDARY_CAMERA_STBY);
+			msleep(4);
+			mmio_cam_control_clocks(info, false);
+			msleep(10);
+			/* Sensor I/O  1.8V Off*/
+			mmio_cam_power_pin_control(0x2, 0);
+			udelay(1);
+			/* VT VGA Core 1.5V Off*/
+			mmio_cam_power_pin_control(0x1, 0);
+			udelay(1);
+			/* Sensor AVDD 2.8V Off*/
+			mmio_cam_power_pin_control(0x4, 0);
+		}
+
+		subPMIC_PowerOff(0x0);
+		info->pdata->power_disable(info->pdata);
+		mdelay(CLOCK_ENABLE_DELAY);
+		mmio_set_gpio(info->pdata, 0, PRIMARY_CAMERA_RESET);
+		mmio_set_gpio(info->pdata, 0, PRIMARY_CAMERA_STBY);
+		mmio_set_gpio(info->pdata, 0, SECONDARY_CAMERA_RESET);
+		mmio_set_gpio(info->pdata, 0, SECONDARY_CAMERA_STBY);
+		mmio_cam_control_clocks(info, false);
 	}
 
 #endif
@@ -1072,7 +1112,8 @@ static int mmio_release(struct inode *node, struct file *filp)
 {
 	struct mmio_info *info = filp->private_data;
 	BUG_ON(info == NULL);
-	mmio_activate_i2c2(info, MMIO_DEACTIVATE_I2C);
+	printk(KERN_DEBUG "mmio_release\n");
+	/*mmio_activate_i2c2(info, MMIO_DEACTIVATE_I2C); */
 	info->pdata->config_xshutdown_pins(info->pdata, MMIO_DISABLE_XSHUTDOWN,
 					   -1);
 

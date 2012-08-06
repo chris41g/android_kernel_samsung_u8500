@@ -113,6 +113,15 @@ config MACH_JANICE_CHN
 	  will be used in Power off alarm and OVP UI concept for Chinese
 	  models.
 
+config MACH_GAVINI_CHN
+	bool "Gavini_chn"
+	help
+	  Supports China features of Gavini_chn boards. This feature
+	  will be used to add auto boot support for power off alarm
+	  and OVP UI concept for Chinese models. Use this Macro to
+	  distinguish Global and CHN. CHN can auto-power-up when alarm
+	  is time up.
+
 config MACH_CODINA
 	bool "Codina"
 	help

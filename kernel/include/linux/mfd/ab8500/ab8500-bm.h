@@ -341,6 +341,9 @@ struct ab8500_maxim_parameters {
  * @low_high_vol_lvl:		charger voltage in temp low/high state in mV'
  * @battery_resistance:		battery inner resistance in mOhm.
  * @line_impedance:		line impedance in mOhm.
+ * @battery_resistance_for_charging:
+				battery inner res and line impedance for
+				charging in mohm
  * @n_r_t_tbl_elements:		number of elements in r_to_t_tbl
  * @r_to_t_tbl:			table containing resistance to temp points
  * @n_v_cap_tbl_elements:	number of elements in v_to_cap_tbl
@@ -368,19 +371,21 @@ struct battery_type {
 	int low_high_vol_lvl;
 	int battery_resistance;
 	int line_impedance;
+	int battery_resistance_for_charging;
 	int n_temp_tbl_elements;
 	struct res_to_temp *r_to_t_tbl;
 	int n_v_cap_tbl_elements;
 	struct v_to_cap *v_to_cap_tbl;
 	int n_v_res_tbl_elements;
 	struct v_to_res *v_to_res_tbl;
+	int n_v_chg_res_tbl_elements;
+	struct v_to_res *v_to_chg_res_tbl;
 	unsigned long timeout_chargeoff_time ;
 	unsigned long initial_timeout_time ;
 	unsigned long subsequent_timeout_time ;
 	unsigned long error_charge_stoptime;
-	int over_voltage_threshold;
+	int over_voltage_threshold ;	
 };
-
 
 /**
  * struct ab8500_bm_capacity_levels - ab8500 capacity level data

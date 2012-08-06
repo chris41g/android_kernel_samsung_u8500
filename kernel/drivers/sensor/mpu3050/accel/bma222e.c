@@ -68,8 +68,8 @@
 #define BMA222_ACC_Z_MSB__LEN           8
 #define BMA222_ACC_Z_MSB__MSK           0xFF
 
-#define BMA222_GET_BITSLICE(regvar, bitname)\
-	(regvar & bitname##__MSK) >> bitname##__POS
+#define BMA222_GET_BITSLICE(regvar, bitname) \
+	((regvar & bitname##__MSK) >> bitname##__POS)
 
 extern struct acc_data cal_data;
 
@@ -83,14 +83,10 @@ static int bma222_suspend(void *mlsl_handle,
 {
 	int result;
 
-//	printk("111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111");
-	
-#if 0
 	result =
 		MLSLSerialWriteSingle(mlsl_handle, pdata->address,
 				ACCEL_BMA222_SUSPEND_REG, 0x80);
 	ERROR_CHECK(result);
-#endif
 	return result;
 }
 
@@ -101,9 +97,51 @@ static int bma222_resume(void *mlsl_handle,
 	int result;
 	unsigned char reg = 0;
 
-//	printk("22222222222222222222222222222222222222222222222222222222222222222222222222222222222222222222");
+	result =
+		MLSLSerialWriteSingle(mlsl_handle, pdata->address,
+				ACCEL_BMA222_SUSPEND_REG, 0x00);
+	ERROR_CHECK(result);
+	return result;
+}
 
-#if 0
+static int bma222_read(void *mlsl_handle,
+		struct ext_slave_descr *slave,
+		struct ext_slave_platform_data *pdata,
+		unsigned char *data)
+{
+	int result;
+	s8 x, y, z;
+
+	result = MLSLSerialRead(mlsl_handle, pdata->address,
+			slave->reg, slave->len, data);
+
+	if (slave->len == 6) {
+		x = (BMA222_GET_BITSLICE(data[1],
+			BMA222_ACC_X_MSB) << (BMA222_ACC_X8_LSB__LEN));
+		y = (BMA222_GET_BITSLICE(data[3],
+			BMA222_ACC_Y_MSB) << (BMA222_ACC_Y8_LSB__LEN));
+		z = (BMA222_GET_BITSLICE(data[5],
+			BMA222_ACC_Z_MSB) << (BMA222_ACC_Z8_LSB__LEN));
+
+		x = x - cal_data.x;
+		y = y - cal_data.y;
+		z = z - cal_data.z;
+
+		data[1] = x;
+		data[3] = y;
+		data[5] = z;
+	}
+
+	return result;
+}
+
+static int bma222_init(void *mlsl_handle,
+		struct ext_slave_descr *slave,
+		struct ext_slave_platform_data *pdata)
+{
+	int result;
+	unsigned char reg = 0;
+
 	/* Soft reset */
 	result =
 		MLSLSerialWriteSingle(mlsl_handle, pdata->address,
@@ -134,62 +172,17 @@ static int bma222_resume(void *mlsl_handle,
 		MLSLSerialWriteSingle(mlsl_handle, pdata->address,
 				ACCEL_BMA222_RANGE_REG, reg);
 	ERROR_CHECK(result);
-#endif 
-	return result;
-}
 
-static int bma222_read(void *mlsl_handle,
-		struct ext_slave_descr *slave,
-		struct ext_slave_platform_data *pdata,
-		unsigned char *data)
-{
-	int result;
-	s8 x, y, z;
-	static s8 prev_x, prev_y, prev_z;
-//	static int is_first = 0;
-
-	result = MLSLSerialRead(mlsl_handle, pdata->address,
-			slave->reg, slave->len, data);
-
-	if(slave->len == 6)
-	{
-		x =(BMA222_GET_BITSLICE(data[1],BMA222_ACC_X_MSB)<<(BMA222_ACC_X8_LSB__LEN));
-		y =(BMA222_GET_BITSLICE(data[3],BMA222_ACC_Y_MSB)<<(BMA222_ACC_Y8_LSB__LEN));
-		z =(BMA222_GET_BITSLICE(data[5],BMA222_ACC_Z_MSB)<<(BMA222_ACC_Z8_LSB__LEN));
-
-		x = x - cal_data.x;
-		y = y - cal_data.y;
-		z = z - cal_data.z;
-
-		/*
-		if(!is_first) {
-
-			prev_x = x;
-			prev_y = y;
-			prev_z = z;
-
-			is_first = 1;
-		}
-
-		x = (prev_x + x) / 2;
-		y = (prev_y + y) / 2;
-		z = (prev_z + z) / 2;*/
-
-		data[1] = x;
-		data[3] = y;
-		data[5] = z;
-
-		/*
-		prev_x = x;
-		prev_y = y;
-		prev_z = z;*/
-	}
+	result =
+		MLSLSerialWriteSingle(mlsl_handle, pdata->address,
+				ACCEL_BMA222_SUSPEND_REG, 0x80);
+	ERROR_CHECK(result);
 
 	return result;
 }
 
 static struct ext_slave_descr bma222_descr = {
-	/*.init             = */ NULL,
+	/*.init             = */ bma222_init,
 	/*.exit             = */ NULL,
 	/*.suspend          = */ bma222_suspend,
 	/*.resume           = */ bma222_resume,
@@ -210,7 +203,3 @@ struct ext_slave_descr *bma222_get_slave_descr(void)
 	return &bma222_descr;
 }
 EXPORT_SYMBOL(bma222_get_slave_descr);
-
-/*
- *  @}
- */

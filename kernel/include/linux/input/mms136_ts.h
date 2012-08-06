@@ -29,7 +29,7 @@ struct mms_ts_platform_data {
 	const char	*fw_name_builtin;
 	unsigned int	*key_map;
 	unsigned int	key_nums;
-	void	(*int_set_pull)(bool to_up);
+	void	(*pin_set_pull)(int pin, bool to_up);
 };
 
 extern struct class *sec_class;

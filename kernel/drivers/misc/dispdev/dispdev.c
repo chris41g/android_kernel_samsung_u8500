@@ -50,7 +50,6 @@ struct dispdev_buffer {
 struct dispdev {
 	bool open;
 	struct mutex lock;
-	struct mutex buffer_lock;
 	struct miscdevice mdev;
 	struct list_head list;
 	struct mcde_display_device *ddev;
@@ -379,7 +378,6 @@ static int dispdev_queue_buffer(struct dispdev *dd,
 	}
 
 	dd->buffers[buf_idx].paddr = mem_chunk.paddr;
-	dd->buffers[buf_idx].state = BUF_ACTIVATED;
 
 	if (!dd->buffers_need_update &&
 			dd->config.width == buffer->buf_cfg.width &&
@@ -388,9 +386,7 @@ static int dispdev_queue_buffer(struct dispdev *dd,
 			dd->config.stride == buffer->buf_cfg.stride) {
 		info.paddr = mem_chunk.paddr;
 		mcde_dss_apply_overlay(dd->ovly, &info);
-		mutex_unlock(&dd->buffer_lock);
 		mcde_dss_update_overlay(dd->ovly, false);
-		mutex_lock(&dd->buffer_lock);
 	} else {
 		/* skip overlay update */
 		dd->buffers_need_update = true;
@@ -410,6 +406,8 @@ static int dispdev_queue_buffer(struct dispdev *dd,
 		}
 	}
 
+	dd->buffers[buf_idx].state = BUF_ACTIVATED;
+
 	return 0;
 }
 
@@ -421,9 +419,9 @@ static int dispdev_dequeue_buffer(struct dispdev *dd)
 	if (i < 0) {
 		if (find_buf(dd, BUF_ACTIVATED) < 0)
 			return -EINVAL;
-		mutex_unlock(&dd->buffer_lock);
+		mutex_unlock(&dd->lock);
 		wait_event(dd->waitq_dq, (i = find_buf(dd, BUF_FREE)) >= 0);
-		mutex_lock(&dd->buffer_lock);
+		mutex_lock(&dd->lock);
 	}
 	hwmem_unpin(dd->buffers[i].alloc);
 	dd->buffers[i].state = BUF_DEQUEUED;
@@ -438,6 +436,8 @@ int dispdev_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 	int ret;
 	struct dispdev *dd = (struct dispdev *)file->private_data;
 
+	mutex_lock(&dd->lock);
+
 	switch (cmd) {
 	case DISPDEV_SET_CONFIG_IOC:
 		{
@@ -445,36 +445,21 @@ int dispdev_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 			if (copy_from_user(&cfg, (void __user *)arg,
 								sizeof(cfg)))
 				ret = -EFAULT;
-			else {
-				mutex_lock(&dd->lock);
-				mutex_lock(&dd->buffer_lock);
+			else
 				ret = dispdev_set_config(dd, &cfg);
-				mutex_unlock(&dd->buffer_lock);
-				mutex_unlock(&dd->lock);
-			}
 		}
 		break;
 	case DISPDEV_GET_CONFIG_IOC:
-		mutex_lock(&dd->buffer_lock);
 		ret = copy_to_user((void __user *)arg, &dd->config,
 							sizeof(dd->config));
-		mutex_unlock(&dd->buffer_lock);
 		if (ret)
 			ret = -EFAULT;
 		break;
 	case DISPDEV_REGISTER_BUFFER_IOC:
-		mutex_lock(&dd->lock);
-		mutex_lock(&dd->buffer_lock);
 		ret = dispdev_register_buffer(dd, (s32)arg);
-		mutex_unlock(&dd->buffer_lock);
-		mutex_unlock(&dd->lock);
 		break;
 	case DISPDEV_UNREGISTER_BUFFER_IOC:
-		mutex_lock(&dd->lock);
-		mutex_lock(&dd->buffer_lock);
 		ret = dispdev_unregister_buffer(dd, (u32)arg);
-		mutex_unlock(&dd->buffer_lock);
-		mutex_unlock(&dd->lock);
 		break;
 	case DISPDEV_QUEUE_BUFFER_IOC:
 	{
@@ -482,23 +467,18 @@ int dispdev_ioctl(struct inode *inode, struct file *file, unsigned int cmd,
 		if (copy_from_user(&buffer, (void __user *)arg,
 							sizeof(buffer)))
 			ret = -EFAULT;
-		else {
-			mutex_lock(&dd->lock);
-			mutex_lock(&dd->buffer_lock);
+		else
 			ret = dispdev_queue_buffer(dd, &buffer);
-			mutex_unlock(&dd->buffer_lock);
-			mutex_unlock(&dd->lock);
-		}
 		break;
 	}
 	case DISPDEV_DEQUEUE_BUFFER_IOC:
-		mutex_lock(&dd->buffer_lock);
 		ret = dispdev_dequeue_buffer(dd);
-		mutex_unlock(&dd->buffer_lock);
 		break;
 	default:
 		ret = -ENOSYS;
 	}
+
+	mutex_unlock(&dd->lock);
 
 	return ret;
 }
@@ -516,7 +496,6 @@ static void init_dispdev(struct dispdev *dd, struct mcde_display_device *ddev,
 	int rotation;
 
 	mutex_init(&dd->lock);
-	mutex_init(&dd->buffer_lock);
 	INIT_LIST_HEAD(&dd->list);
 	dd->ddev = ddev;
 	dd->overlay = overlay;

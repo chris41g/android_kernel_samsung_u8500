@@ -207,6 +207,12 @@ int prcmu_stop_temp_sense(void);
 void prcmu_enable_spi2(void);
 void prcmu_disable_spi2(void);
 
+int prcmu_config_a9wdog(u8 num, bool sleep_auto_off);
+int prcmu_enable_a9wdog(u8 id);
+int prcmu_disable_a9wdog(u8 id);
+int prcmu_kick_a9wdog(u8 id);
+int prcmu_load_a9wdog(u8 id, u32 val);
+
 #else /* !CONFIG_U8500_PRCMU */
 
 static inline int prcmu_request_ape_opp_100_voltage(bool enable)
@@ -292,6 +298,31 @@ static inline int prcmu_enable_spi2(void)
 }
 
 static inline int prcmu_disable_spi2(void)
+{
+	return 0;
+}
+
+static inline int prcmu_config_a9wdog(u8 num, bool sleep_auto_off)
+{
+	return 0;
+}
+
+static inline int prcmu_enable_a9wdog(u8 id)
+{
+	return 0;
+}
+
+static inline int prcmu_disable_a9wdog(u8 id)
+{
+	return 0;
+}
+
+static inline int prcmu_kick_a9wdog(u8 id)
+{
+	return 0;
+}
+
+static inline int prcmu_load_a9wdog(u8 id, u32 val)
 {
 	return 0;
 }

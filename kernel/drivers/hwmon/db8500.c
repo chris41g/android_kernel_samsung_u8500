@@ -339,36 +339,6 @@ static int __devinit db8500_temp_probe(struct platform_device *pdev)
 	if (!data)
 		return -ENOMEM;
 
-	irq = platform_get_irq_byname(pdev, "IRQ_HOTMON_LOW");
-	if (irq < 0) {
-		dev_err(&pdev->dev, "Get IRQ_HOTMON_LOW failed\n");
-		goto exit;
-	}
-
-	err = request_threaded_irq(irq, NULL, prcmu_hotmon_low_irq_handler,
-		IRQF_NO_SUSPEND, "db8500_temp_low", pdev);
-	if (err < 0) {
-		dev_err(&pdev->dev, "db8500: Failed allocate HOTMON_LOW.\n");
-		goto exit;
-	} else {
-		dev_dbg(&pdev->dev, "db8500: Succeed allocate HOTMON_LOW.\n");
-	}
-
-	irq = platform_get_irq_byname(pdev, "IRQ_HOTMON_HIGH");
-	if (irq < 0) {
-		dev_err(&pdev->dev, "Get IRQ_HOTMON_HIGH failed\n");
-		goto exit;
-	}
-
-	err = request_threaded_irq(irq, NULL, prcmu_hotmon_high_irq_handler,
-		IRQF_NO_SUSPEND, "db8500_temp_high", pdev);
-	if (err < 0) {
-		dev_err(&pdev->dev, "db8500: Failed allocate HOTMON_HIGH.\n");
-		goto exit;
-	} else {
-		dev_dbg(&pdev->dev, "db8500: Succeed allocate HOTMON_HIGH.\n");
-	}
-
 	data->hwmon_dev = hwmon_device_register(&pdev->dev);
 	if (IS_ERR(data->hwmon_dev)) {
 		err = PTR_ERR(data->hwmon_dev);
@@ -397,6 +367,36 @@ static int __devinit db8500_temp_probe(struct platform_device *pdev)
 	if (err < 0) {
 		dev_err(&pdev->dev, "Create sysfs group failed (%d)\n", err);
 		goto exit_platform_data;
+	}
+
+	irq = platform_get_irq_byname(pdev, "IRQ_HOTMON_LOW");
+	if (irq < 0) {
+		dev_err(&pdev->dev, "Get IRQ_HOTMON_LOW failed\n");
+		goto exit;
+	}
+
+	err = request_threaded_irq(irq, NULL, prcmu_hotmon_low_irq_handler,
+		IRQF_NO_SUSPEND, "db8500_temp_low", pdev);
+	if (err < 0) {
+		dev_err(&pdev->dev, "db8500: Failed allocate HOTMON_LOW.\n");
+		goto exit;
+	} else {
+		dev_dbg(&pdev->dev, "db8500: Succeed allocate HOTMON_LOW.\n");
+	}
+
+	irq = platform_get_irq_byname(pdev, "IRQ_HOTMON_HIGH");
+	if (irq < 0) {
+		dev_err(&pdev->dev, "Get IRQ_HOTMON_HIGH failed\n");
+		goto exit;
+	}
+
+	err = request_threaded_irq(irq, NULL, prcmu_hotmon_high_irq_handler,
+		IRQF_NO_SUSPEND, "db8500_temp_high", pdev);
+	if (err < 0) {
+		dev_err(&pdev->dev, "db8500: Failed allocate HOTMON_HIGH.\n");
+		goto exit;
+	} else {
+		dev_dbg(&pdev->dev, "db8500: Succeed allocate HOTMON_HIGH.\n");
 	}
 
 	return 0;

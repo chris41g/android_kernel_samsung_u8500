@@ -60,7 +60,16 @@ static int __init startup_graphics_setup(char *str)
 
 }	 
 __setup("startup_graphics=", startup_graphics_setup);
-	 
+
+unsigned int lcd_type;
+static int __init lcdtype_setup(char *str)
+{
+	get_option(&str, &lcd_type);
+
+	return 1;
+}
+__setup("lcdtype=", lcdtype_setup);
+
 static struct mcde_port port0 = {
 	.type = MCDE_PORTTYPE_DPI,
 	.pixel_format = MCDE_PORTPIXFMT_DPI_24BPP,

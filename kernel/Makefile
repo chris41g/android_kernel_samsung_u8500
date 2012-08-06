@@ -359,6 +359,16 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
 		   -fno-delete-null-pointer-checks
 KBUILD_AFLAGS   := -D__ASSEMBLY__
 
+#[ latin_scm 2011.08.18 Set up kernel feature for Latin
+ifeq ($(LTN_BUILD_LOCALE),LTN)
+
+# Latin Common about all project
+KBUILD_CFLAGS += -DCONFIG_LTN_COMMON
+KBUILD_CPPFLAGS += -DCONFIG_LTN_COMMON
+
+endif
+#] latin_scm 2011.08.18 Set up kernel feature for Latin
+
 # Read KERNELRELEASE from include/config/kernel.release (if it exists)
 KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
 KERNELVERSION = $(VERSION).$(PATCHLEVEL).$(SUBLEVEL)$(EXTRAVERSION)

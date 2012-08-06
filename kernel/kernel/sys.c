@@ -42,6 +42,8 @@
 #include <linux/syscalls.h>
 #include <linux/kprobes.h>
 #include <linux/user_namespace.h>
+#include <linux/kthread.h>
+#include <linux/delay.h>
 
 #include <asm/uaccess.h>
 #include <asm/io.h>
@@ -362,23 +364,38 @@ EXPORT_SYMBOL_GPL(kernel_power_off);
 static DEFINE_MUTEX(reboot_mutex);
 
 #define REBOOT_TIMEOUT	5
-static unsigned long reboot_cmd;
 
-static void reboot_timer_expired(struct work_struct *work)
+static int reboot_timer_expired(void *data)
 {
 	static DEFINE_MUTEX(lock);
+	unsigned long cmd = (unsigned long) data;
+	msleep(REBOOT_TIMEOUT * 1000);
 
 	mutex_lock(&lock);
 
-	printk(KERN_EMERG "Timer expired forceing power off/reboot.\n");
-	if (reboot_cmd == LINUX_REBOOT_CMD_POWER_OFF)
+	printk(KERN_EMERG "Timer expired forceing power %s.\n",
+	       cmd == LINUX_REBOOT_CMD_POWER_OFF ? "off" : "reboot");
+
+	if (cmd == LINUX_REBOOT_CMD_POWER_OFF)
 		machine_power_off();
 	else
 		machine_restart(NULL);
 
 	mutex_unlock(&lock);
+	return 0;
 }
-static DECLARE_DELAYED_WORK(reboot_work, reboot_timer_expired);
+
+static int reboot_timer_setup(unsigned long cmd)
+{
+	struct task_struct *task;
+
+	task = kthread_create(reboot_timer_expired, cmd, "reboot_rescue0");
+	kthread_bind(task, 0);
+	wake_up_process(task);
+	task = kthread_create(reboot_timer_expired, cmd, "reboot_rescue1");
+	kthread_bind(task, 1);
+	wake_up_process(task);
+}
 
 /*
  * Reboot system call: for obvious reasons only root may call it,
@@ -416,12 +433,7 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 	switch (cmd) {
 	case LINUX_REBOOT_CMD_RESTART:
 		/* register the timer */
-
-		reboot_cmd = cmd;
-		schedule_delayed_work_on(0, &reboot_work,
-					 msecs_to_jiffies(REBOOT_TIMEOUT*1000));
-		schedule_delayed_work_on(1, &reboot_work,
-					 msecs_to_jiffies(REBOOT_TIMEOUT*1000));
+		reboot_timer_setup(cmd);
 
 		kernel_restart(NULL);
 		break;
@@ -441,11 +453,7 @@ SYSCALL_DEFINE4(reboot, int, magic1, int, magic2, unsigned int, cmd,
 
 	case LINUX_REBOOT_CMD_POWER_OFF:
 		/* register the timer */
-		reboot_cmd = cmd;
-		schedule_delayed_work_on(0, &reboot_work,
-					 msecs_to_jiffies(REBOOT_TIMEOUT*1000));
-		schedule_delayed_work_on(1, &reboot_work,
-					 msecs_to_jiffies(REBOOT_TIMEOUT*1000));
+		reboot_timer_setup(cmd);
 
 		kernel_power_off();
 		do_exit(0);

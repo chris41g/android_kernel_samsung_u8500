@@ -70,7 +70,7 @@ static int _regulator_get_voltage(struct regulator_dev *rdev);
 static int _regulator_get_current_limit(struct regulator_dev *rdev);
 static unsigned int _regulator_get_mode(struct regulator_dev *rdev);
 static void _notifier_call_chain(struct regulator_dev *rdev,
-				  unsigned long event, void *data, int lock_sublevel);
+				  unsigned long event, void *data);
 
 static const char *rdev_get_name(struct regulator_dev *rdev)
 {
@@ -1296,7 +1296,9 @@ static int _regulator_enable(struct regulator_dev *rdev)
 	if (rdev->use_count == 0) {
 		/* do we need to enable the supply regulator first */
 		if (rdev->supply) {
+			mutex_lock(&rdev->supply->mutex);
 			ret = _regulator_enable(rdev->supply);
+			mutex_unlock(&rdev->supply->mutex);
 			if (ret < 0) {
 				printk(KERN_ERR "%s: failed to enable %s: %d\n",
 				       __func__, rdev_get_name(rdev), ret);
@@ -1411,7 +1413,7 @@ static int _regulator_disable(struct regulator_dev *rdev,
 			}
 
 			_notifier_call_chain(rdev, REGULATOR_EVENT_DISABLE,
-					     NULL, 0);
+					     NULL);
 		}
 
 		/* decrease our supplies ref count and disable if required */
@@ -1485,7 +1487,7 @@ static int _regulator_force_disable(struct regulator_dev *rdev,
 		}
 		/* notify other consumers that power has been forced off */
 		_notifier_call_chain(rdev, REGULATOR_EVENT_FORCE_DISABLE |
-			REGULATOR_EVENT_DISABLE, NULL, 0);
+			REGULATOR_EVENT_DISABLE, NULL);
 	}
 
 	/* decrease our supplies ref count and disable if required */
@@ -1673,7 +1675,7 @@ int regulator_set_voltage(struct regulator *regulator, int min_uV, int max_uV)
 	ret = rdev->desc->ops->set_voltage(rdev, min_uV, max_uV);
 
 out:
-	_notifier_call_chain(rdev, REGULATOR_EVENT_VOLTAGE_CHANGE, NULL, 0);
+	_notifier_call_chain(rdev, REGULATOR_EVENT_VOLTAGE_CHANGE, NULL);
 	mutex_unlock(&rdev->mutex);
 	return ret;
 }
@@ -1989,23 +1991,25 @@ EXPORT_SYMBOL_GPL(regulator_unregister_notifier);
 
 /* notify regulator consumers and downstream regulator consumers.
  * Note mutex must be held by caller.
- * lock_sublevel should always be 0, only used for recursive calls.
  */
 static void _notifier_call_chain(struct regulator_dev *rdev,
-				  unsigned long event, void *data, int lock_sublevel)
+				  unsigned long event, void *data)
 {
 	struct regulator_dev *_rdev;
 
 	/* call rdev chain first */
 	blocking_notifier_call_chain(&rdev->notifier, event, NULL);
 
-	/* increase sublevel before stepping into nested regulators */
-	lock_sublevel++;
-
 	/* now notify regulator we supply */
 	list_for_each_entry(_rdev, &rdev->supply_list, slist) {
-		mutex_lock_nested(&_rdev->mutex, lock_sublevel);
-		_notifier_call_chain(_rdev, event, data, lock_sublevel);
+		if (!mutex_trylock(&_rdev->mutex)) {
+			if (_rdev->notifier.head) {
+				printk(KERN_ERR "regulator_core : %s can't handle notifier_call_chain\n", _rdev->desc->name);
+				BUG();
+			}
+			continue;
+		}
+		_notifier_call_chain(_rdev, event, data);
 		mutex_unlock(&_rdev->mutex);
 	}
 }
@@ -2160,7 +2164,7 @@ EXPORT_SYMBOL_GPL(regulator_bulk_free);
 int regulator_notifier_call_chain(struct regulator_dev *rdev,
 				  unsigned long event, void *data)
 {
-	_notifier_call_chain(rdev, event, data, 0);
+	_notifier_call_chain(rdev, event, data);
 	return NOTIFY_DONE;
 
 }

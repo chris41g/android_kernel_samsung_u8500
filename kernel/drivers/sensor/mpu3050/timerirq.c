@@ -159,8 +159,7 @@ static ssize_t timerirq_read(struct file *file,
 	int len, err;
 	struct timerirq_data *data = file->private_data;
 
-	if (!data->data_ready &&
-		data->timeout) {
+	if (!data->data_ready) {
 		wait_event_interruptible_timeout(data->timerirq_wait,
 						 data->data_ready,
 						 data->timeout);

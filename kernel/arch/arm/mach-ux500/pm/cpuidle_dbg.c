@@ -24,6 +24,7 @@
 #include <asm/hardware/gic.h>
 
 #include "cpuidle.h"
+#include "cpuidle_dbg.h"
 #include "pm.h"
 #include "timer.h"
 
@@ -95,6 +96,27 @@ static int cstates_len;
 static DEFINE_SPINLOCK(dbg_lock);
 
 extern int jig_smd;
+
+/* This is stored for post-mortem analysis */
+#ifdef CONFIG_CRASH_DUMP
+#define POST_MORTEM_LEN 16
+
+struct cpuidle_post_mortem_entry {
+	enum ci_pwrst pwr_state;
+	bool is_last;
+	s64 enter;
+	s64 woke;
+	s64 est_wake;
+	s64 est_wake_common;
+	enum post_mortem_sleep sleep; /* will be handled as u32 */
+};
+
+volatile struct {
+	int idx;
+	struct cpuidle_post_mortem_entry status[POST_MORTEM_LEN];
+} cpuidle_post_mortem[NR_CPUS];
+static DEFINE_SPINLOCK(cpuidle_post_mortem_lock);
+#endif
 
 bool ux500_ci_dbg_force_ape_on(void)
 {
@@ -351,6 +373,60 @@ void ux500_ci_dbg_register_reason(int idx, bool power_state_req,
 		apidle_gov_blocked = cstates[max_depth].state == CI_IDLE;
 	}
 }
+
+#ifdef CONFIG_CRASH_DUMP
+void ux500_ci_dbg_wake_time(ktime_t time_wake)
+{
+	int this_cpu = smp_processor_id();
+	int idx;
+
+	spin_lock(&cpuidle_post_mortem_lock);
+	idx = cpuidle_post_mortem[this_cpu].idx;
+
+	cpuidle_post_mortem[this_cpu].status[idx].woke =
+		ktime_to_us(time_wake);
+	spin_unlock(&cpuidle_post_mortem_lock);
+}
+
+void ux500_ci_dbg_log_post_mortem(int ctarget,
+				  ktime_t enter_time, ktime_t est_wake_common,
+				  ktime_t est_wake, int sleep, bool is_last)
+{
+	int idx;
+	int this_cpu;
+
+	this_cpu = smp_processor_id();
+
+	spin_lock(&cpuidle_post_mortem_lock);
+
+	cpuidle_post_mortem[this_cpu].idx++;
+	if (cpuidle_post_mortem[this_cpu].idx == POST_MORTEM_LEN)
+		cpuidle_post_mortem[this_cpu].idx = 0;
+	idx = cpuidle_post_mortem[this_cpu].idx;
+
+	cpuidle_post_mortem[this_cpu].status[idx].pwr_state = ctarget;
+	cpuidle_post_mortem[this_cpu].status[idx].enter =
+		ktime_to_us(enter_time);
+	cpuidle_post_mortem[this_cpu].status[idx].est_wake =
+		ktime_to_us(est_wake);
+	cpuidle_post_mortem[this_cpu].status[idx].est_wake_common =
+		ktime_to_us(est_wake_common);
+	cpuidle_post_mortem[this_cpu].status[idx].is_last = is_last;
+	cpuidle_post_mortem[this_cpu].status[idx].woke = 0;
+	cpuidle_post_mortem[this_cpu].status[idx].sleep = sleep;
+
+	spin_unlock(&cpuidle_post_mortem_lock);
+
+}
+#else
+void ux500_ci_dbg_wake_time(ktime_t time_wake)
+{
+}
+void ux500_ci_dbg_log_post_mortem(ktime_t enter_time, ktime_t est_wake_common,
+				  ktime_t est_wake, int sleep, bool is_last)
+{
+}
+#endif
 
 void ux500_ci_dbg_log(int ctarget, ktime_t enter_time)
 {

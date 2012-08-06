@@ -93,7 +93,7 @@ static ssize_t mpuirq_read(struct file *file,
 	int len, err;
 	struct mpuirq_dev_data *p_mpuirq_dev_data = file->private_data;
 
-	if (!mpuirq_dev_data.data_ready) {
+	if (!mpuirq_dev_data.data_ready && (mpuirq_dev_data.timeout > 0)) {
 		wait_event_interruptible_timeout(mpuirq_wait,
 						 mpuirq_dev_data.
 						 data_ready,

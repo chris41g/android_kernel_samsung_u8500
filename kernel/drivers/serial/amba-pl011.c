@@ -106,31 +106,6 @@ static const u32 backup_regs[] = {
 	UART011_IMSC,
 };
 
-#define UART_WA_SAVE_NR	14
-
-static void pl011_lockup_wa(unsigned long data);
-static const u32 uart_wa_reg[UART_WA_SAVE_NR] = {
-	ST_UART011_DMAWM,
-	ST_UART011_TIMEOUT,
-	ST_UART011_LCRH_RX,
-	UART011_IBRD,
-	UART011_FBRD,
-	ST_UART011_LCRH_TX,
-	UART011_IFLS,
-	ST_UART011_XFCR,
-	ST_UART011_XON1,
-	ST_UART011_XON2,
-	ST_UART011_XOFF1,
-	ST_UART011_XOFF2,
-	UART011_CR,
-	UART011_IMSC
-};
-
-static u32 uart_wa_regdata[UART_WA_SAVE_NR];
-static unsigned int uart_wa_tlet_line;
-static DECLARE_TASKLET(pl011_lockup_tlet, pl011_lockup_wa,
-		(unsigned long) &uart_wa_tlet_line);
-
 /*
  * We wrap our port structure around the generic uart_port.
  */
@@ -426,69 +401,6 @@ static inline void pl011_clock_control_init(struct uart_amba_port *uap)
 }
 #endif
 
-/*
- * pl011_lockup_wa
- * This workaround aims to break the deadlock situation
- * when after long transfer over uart in hardware flow
- * control, uart interrupt registers cannot be cleared.
- * Hence uart transfer gets blocked.
- *
- * It is seen that during such deadlock condition ICR
- * don't get cleared even on multiple write. This leads
- * pass_counter to decrease and finally reach zero. This
- * can be taken as trigger point to run this UART_BT_WA.
- *
- */
-static void pl011_lockup_wa(unsigned long data)
-{
-	struct uart_amba_port *uap = amba_ports[*(unsigned int *)data];
-	void __iomem *base = uap->port.membase;
-	struct circ_buf *xmit = &uap->port.state->xmit;
-	struct tty_struct *tty = uap->port.state->port.tty;
-	int buf_empty_retries = 200;
-	int loop;
-
-	/* Stop HCI layer from submitting data for tx */
-	tty->hw_stopped = 1;
-
-	while (!uart_circ_empty(xmit)) {
-		if (buf_empty_retries-- == 0)
-			break;
-		udelay(100);
-	}
-
-	/* Backup registers */
-	for (loop = 0; loop < UART_WA_SAVE_NR; loop++)
-		uart_wa_regdata[loop] = readl(base + uart_wa_reg[loop]);
-
-	/* Disable UART so that FIFO data is flushed out */
-	writew(0x00, uap->port.membase + UART011_CR);
-
-	/* Soft reset UART module */
-	if (uap->port.dev->platform_data) {
-		struct uart_amba_plat_data *plat;
-
-		plat = uap->port.dev->platform_data;
-		if (plat->reset)
-			plat->reset();
-	}
-
-	/* Restore registers */
-	for (loop = 0; loop < UART_WA_SAVE_NR; loop++)
-		writew(uart_wa_regdata[loop] ,
-				uap->port.membase + uart_wa_reg[loop]);
-
-	/* Initialise the old status of the modem signals */
-	uap->old_status = readw(uap->port.membase + UART01x_FR) &
-				UART01x_FR_MODEM_ANY;
-
-	if (readl(base + UART011_MIS) & 0x2)
-		printk(KERN_EMERG "UART_BT_WA: ***FAILED***\n");
-
-	/* Start Tx/Rx */
-	tty->hw_stopped = 0;
-}
-
 static void pl011_stop_tx(struct uart_port *port)
 {
 	struct uart_amba_port *uap = (struct uart_amba_port *)port;
@@ -643,6 +555,9 @@ static irqreturn_t pl011_int(int irq, void *dev_id)
 	status = readw(uap->port.membase + UART011_MIS);
 	if (status) {
 		do {
+			if (uap->interrupt_may_hang)
+				writew(0x0, uap->port.membase + UART011_ICR);
+
 			writew(status & ~(UART011_TXIS|UART011_RTIS|
 					  UART011_RXIS),
 				uap->port.membase + UART011_ICR);
@@ -655,13 +570,8 @@ static irqreturn_t pl011_int(int irq, void *dev_id)
 			if (status & UART011_TXIS)
 				pl011_tx_chars(uap);
 
-			if (pass_counter-- == 0) {
-				if (uap->interrupt_may_hang) {
-					uart_wa_tlet_line = uap->port.line;
-					tasklet_schedule(&pl011_lockup_tlet);
-				}
+			if (pass_counter-- == 0)
 				break;
-			}
 
 			status = readw(uap->port.membase + UART011_MIS);
 		} while (status != 0);

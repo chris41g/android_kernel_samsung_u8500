@@ -90,6 +90,7 @@ extern struct platform_device u5500_pwm1_device;
 extern struct platform_device u5500_pwm2_device;
 extern struct platform_device u5500_pwm3_device;
 extern struct platform_device ux500_wdt_device;
+extern struct platform_device ux500_prcmu_wdt_device;
 extern struct platform_device mloader_fw_device;
 extern struct platform_device u8500_thsens_device;
 extern struct platform_device ux500_stm_device;

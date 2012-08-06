@@ -204,7 +204,7 @@ extern int rtc_read_alarm(struct rtc_device *rtc,
 			struct rtc_wkalrm *alrm);
 extern int rtc_set_alarm(struct rtc_device *rtc,
 				struct rtc_wkalrm *alrm);
-#if defined(CONFIG_MACH_JANICE_CHN)
+#if defined(CONFIG_MACH_JANICE_CHN) || defined(CONFIG_MACH_GAVINI_CHN)
 extern int rtc_set_alarm_boot(struct rtc_device *rtc,
 				struct rtc_wkalrm *alrm);
 #endif
@@ -248,7 +248,7 @@ extern int rtc_hctosys_ret;
 #endif
 
 
-#if defined(CONFIG_MACH_JANICE_CHN)
+#if defined(CONFIG_MACH_JANICE_CHN) || defined(CONFIG_MACH_GAVINI_CHN)
 extern struct rtc_wkalrm autoboot_alm;
 #endif
 

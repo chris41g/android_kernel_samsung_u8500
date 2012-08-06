@@ -299,7 +299,7 @@ void taos_chip_on(struct taos_data *taos)
 		fail_num++;
 	}
 
-	value = PRX_GAIN_OFFSET;	/* 100 */
+	value = PRX_GAIN_OFFSET;
 	err = opt_i2c_write(taos, (CMD_REG | PRX_OFFSET), &value);
 	if (err < 0) {
 		pr_err("%s: prox gain reg failed\n", __func__);
@@ -374,14 +374,13 @@ void taos_off(struct taos_data *taos)
 	disable_irq(taos->irq);
 	cancel_work_sync(&taos->work_prox);
 
-	taos->factorytest_enable = OFF;
 	taos->proximity_enable = OFF;
 	taos->proximity_value = OFF;
 	taos_chip_off(taos);
 }
 
 /************************************************************************/
-/*  TAOS sysfs															*/
+/*  TAOS sysfs                                                          */
 /************************************************************************/
 static ssize_t proximity_enable_show(struct device *dev,
 				      struct device_attribute *attr,
@@ -404,14 +403,12 @@ static ssize_t proximity_enable_store(struct device *dev,
 #if 0
 		taos_poweron(taos);
 #endif
-	/* reset Interrupt pin */
-	/* to active Interrupt, TMD2771x Interuupt pin shoud be reset. */
 		i2c_smbus_write_byte(taos->client,
-				(CMD_REG | CMD_SPL_FN |
-						CMD_PROX_INTCLR));
+			(CMD_REG | CMD_SPL_FN
+				| CMD_PROX_INTCLR));
 		taos_on(taos);
 		input_report_abs(taos->proximity_input_dev, ABS_DISTANCE,
-				!taos->proximity_value);
+					!taos->proximity_value);
 		input_sync(taos->proximity_input_dev);
 	} else if (value == 0 && taos->proximity_enable == ON) {
 		taos_off(taos);
@@ -651,6 +648,7 @@ static int taos_opt_probe(struct i2c_client *client,
 	register_early_suspend(&taos->early_suspend);
 #endif
 
+	taos->factorytest_enable = OFF;
 	taos_off(taos);
 	func_dbg();
 	return 0;

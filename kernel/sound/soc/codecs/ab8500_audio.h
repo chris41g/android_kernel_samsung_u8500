@@ -19,7 +19,7 @@
 #define AB8500_SUPPORTED_RATE (SNDRV_PCM_RATE_48000)
 #define AB8500_SUPPORTED_FMT (SNDRV_PCM_FMTBIT_S16_LE)
 
-#define LINEIN_RAMP_DELAY 50
+#define LINEIN_RAMP_DELAY 100
 
 extern struct snd_soc_dai_driver ab8500_codec_dai[];
 extern struct snd_soc_codec_driver soc_codec_dev_ab8500;

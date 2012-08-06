@@ -26,7 +26,7 @@
 #define EVENT_TYPE_MAGV_Y           ABS_HAT0Y
 #define EVENT_TYPE_MAGV_Z           ABS_BRAKE
 
-#define ALPS_POLL_INTERVAL			100	/* msecs */
+#define ALPS_POLL_INTERVAL			200	/* msecs */
 #define ALPS_INPUT_FUZZ				0	/* event threshold */
 #define ALPS_INPUT_FLAT				0
 
@@ -92,7 +92,7 @@ static long alps_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 			else if (tmpval <=  60)
 				tmpval =  60;
 			else
-				tmpval = 100;
+				tmpval = 200;
 			mutex_lock(&data->alps_lock);
 			data->delay = tmpval;
 

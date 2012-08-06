@@ -19,6 +19,7 @@
 #include <linux/ktime.h>
 #include <linux/cpufreq.h>
 #include <mach/prcmu.h>
+#include <mach/usecase_gov.h>
 #include "cpufreq-dbx500.h"
 
 #define CPULOAD_MEAS_DELAY	3000 /* 3 secondes of delta */
@@ -36,6 +37,7 @@ enum ux500_uc {
 	UX500_UC_AUTO, /* Add use case below this. */
 	UX500_UC_VC,
 	UX500_UC_LPA,
+	UX500_UC_EXT, /* External control use */
 	UX500_UC_USER, /* Add use case above this. */
 	UX500_UC_MAX,
 };
@@ -75,7 +77,7 @@ static bool user_config_updated;
 static enum ux500_uc current_uc = UX500_UC_MAX;
 static bool is_work_scheduled;
 static bool is_early_suspend;
-
+static int allowed_max_arm_opp;
 static unsigned int cpuidle_deepest_state;
 
 struct usecase_config {
@@ -136,6 +138,17 @@ static struct usecase_config usecase_conf[UX500_UC_MAX] = {
 		.forced_state		= 0, /* Updated dynamically */
 		.vc_override		= false,
 		.force_usecase		= false,
+	},
+	[UX500_UC_EXT] = {
+		.name			= "external",
+		.min_arm_opp		= 25,
+		.cpuidle_multiplier	= 1024,
+		.second_cpu_online	= true,
+		.l2_prefetch_en		= true,
+		.enable			= false,
+		.forced_state		= 0,
+		.vc_override		= false,
+		.force_usecase		= true,
 	},
 };
 
@@ -333,7 +346,7 @@ static int set_cpufreq(int cpu, int min_freq, int max_freq)
 	int ret;
 	struct cpufreq_policy policy;
 
-	pr_debug("set cpu freq: min %d max: %d\n", min_freq, max_freq);
+	pr_debug("%s: min: %d, max %d\n", __func__, min_freq, max_freq);
 
 	ret = cpufreq_get_policy(&policy, cpu);
 	if (ret < 0) {
@@ -388,8 +401,7 @@ static void set_cpu_config(enum ux500_uc new_uc)
 	if(usecase_conf[new_uc].max_arm_opp)
 		max_freq = dbx500_cpufreq_percent2freq(usecase_conf[new_uc].max_arm_opp);
 	else
-		/* Maximum OPP is 125% */
-		max_freq = dbx500_cpufreq_percent2freq(125);
+		max_freq = dbx500_cpufreq_percent2freq(allowed_max_arm_opp);
 
 	min_freq = dbx500_cpufreq_percent2freq(usecase_conf[new_uc].min_arm_opp);
 
@@ -673,7 +685,7 @@ static int setup_debugfs(void)
 
 	for (i = 0; i < ARRAY_SIZE(debug_entry); i++) {
 		if (IS_ERR_OR_NULL(debugfs_create_file(debug_entry[i].name,
-						(S_IWUSR|S_IWGRP) | S_IRUGO,
+					       (S_IWUSR|S_IWGRP) | S_IRUGO,
 						usecase_dir,
 						NULL,
 						debug_entry[i].fops)))
@@ -783,7 +795,8 @@ static ssize_t show_current(struct sysdev_class *class,
 	enum ux500_uc display_uc = (current_uc == UX500_UC_MAX) ?
 					UX500_UC_NORMAL : current_uc;
 
-	return sprintf(buf, "min_arm_opp: %d\n"
+	return sprintf(buf, "current_uc: %d\n"
+		"min_arm_opp: %d\n"
 		"max_arm_opp: %d\n"
 		"cpuidle_multiplier: %ld\n"
 		"second_cpu_online: %s\n"
@@ -791,6 +804,7 @@ static ssize_t show_current(struct sysdev_class *class,
 		"forced_state: %d\n"
 		"vc_override: %s\n"
 		"force_usecase: %s\n",
+		current_uc,
 		usecase_conf[display_uc].min_arm_opp,
 		usecase_conf[display_uc].max_arm_opp,
 		usecase_conf[display_uc].cpuidle_multiplier,
@@ -869,6 +883,102 @@ static ssize_t store_dc_attr(struct sysdev_class *class,
 	return count;
 }
 
+static int arm_opp_level[] = { 25, 50, 100, 125 };
+static unsigned int usecase_enable_status;
+
+/* Control interface of usecase governor */
+int set_usecase_config(int enable, int max, int min)
+{
+	struct cpufreq_frequency_table *table;
+	int max_idx = -1;
+	int min_idx = -1;
+
+	/* Argument should be 0(ENABLE_MAX_LIMIT) to 3(DISABLE_MIN_LIMIT). */
+	if ((enable < ENABLE_MAX_LIMIT) && (enable > DISABLE_MIN_LIMIT))
+		return -EINVAL;
+
+	table = cpufreq_frequency_get_table(0);
+	if (!table) {
+		printk(KERN_ERR "%s: Failed to get the cpufreq table\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	pr_info("%s: enable(%d), max(%d), min(%d)\n",
+		__func__, enable, max, min);
+
+	switch (enable) {
+	case ENABLE_MAX_LIMIT:
+		usecase_enable_status |= 0x1;
+		break;
+
+	case DISABLE_MAX_LIMIT:
+		usecase_enable_status &= ~(0x1);
+		break;
+
+	case ENABLE_MIN_LIMIT:
+		usecase_enable_status |= 0x2;
+		break;
+
+	case DISABLE_MIN_LIMIT:
+		usecase_enable_status &= ~(0x2);
+		break;
+	};
+
+	usecase_conf[UX500_UC_EXT].enable = (bool)usecase_enable_status;
+
+	/* Set min/max opp level from Request */
+	if (max == REQ_RESET_VALUE)
+		usecase_conf[UX500_UC_EXT].max_arm_opp = 0;
+	else if (max != REQ_NO_CHANGE) {
+		for (max_idx = 0; table[max_idx].frequency != max; max_idx++)
+			;
+		usecase_conf[UX500_UC_EXT].max_arm_opp = arm_opp_level[max_idx];
+	}
+
+	if (min == REQ_RESET_VALUE)
+		usecase_conf[UX500_UC_EXT].min_arm_opp = 25;
+	else if (min != REQ_NO_CHANGE) {
+		for (min_idx = 0; table[min_idx].frequency != min; min_idx++)
+			;
+		usecase_conf[UX500_UC_EXT].min_arm_opp = arm_opp_level[min_idx];
+	}
+
+	pr_info("%s: NEW min_opp(%d), max_opp(%d)\n",
+		__func__,
+		usecase_conf[UX500_UC_EXT].min_arm_opp,
+		usecase_conf[UX500_UC_EXT].max_arm_opp);
+
+	usecase_update_user_config();
+
+	mutex_lock(&user_config_mutex);
+
+	if (usecase_conf[UX500_UC_AUTO].enable ||
+		usecase_conf[UX500_UC_USER].enable) {
+		if (!is_work_scheduled) {
+			schedule_delayed_work_on(0, &work_usecase,
+				msecs_to_jiffies(CPULOAD_MEAS_DELAY));
+			is_work_scheduled = true;
+		}
+	} else if (is_work_scheduled) {
+		cancel_delayed_work_sync(&work_usecase);
+		is_work_scheduled = false;
+		set_cpu_config(UX500_UC_NORMAL);
+	}
+
+	mutex_unlock(&user_config_mutex);
+
+	return 0;
+}
+
+static void usecase_init_max_opp(void)
+{
+	if (prcmu_has_arm_maxopp())
+		allowed_max_arm_opp = 125;
+	else
+		allowed_max_arm_opp = 100;
+}
+
 static int usecase_sysfs_init(void)
 {
 	int err;
@@ -944,6 +1054,8 @@ static int __init init_usecase_devices(void)
 		goto error2;
 
 	usecase_cpuidle_init();
+
+	usecase_init_max_opp();
 
 	prcmu_qos_add_requirement(PRCMU_QOS_ARM_OPP, "usecase", 25);
 

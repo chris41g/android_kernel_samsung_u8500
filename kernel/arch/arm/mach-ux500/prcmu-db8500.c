@@ -196,6 +196,11 @@
 #define MB4H_HOTDOG	0x12
 #define MB4H_HOTMON	0x13
 #define MB4H_HOT_PERIOD	0x14
+#define MB4H_A9WDOG_CONF 0x16
+#define MB4H_A9WDOG_EN   0x17
+#define MB4H_A9WDOG_DIS  0x18
+#define MB4H_A9WDOG_LOAD 0x19
+#define MB4H_A9WDOG_KICK 0x20
 
 /* Mailbox 4 Requests */
 #define PRCM_REQ_MB4_DDR_ST_AP_SLEEP_IDLE	(PRCM_REQ_MB4 + 0x0)
@@ -208,6 +213,13 @@
 #define PRCM_REQ_MB4_HOT_PERIOD			(PRCM_REQ_MB4 + 0x0)
 #define HOTMON_CONFIG_LOW			BIT(0)
 #define HOTMON_CONFIG_HIGH			BIT(1)
+#define PRCM_REQ_MB4_A9WDOG_0			(PRCM_REQ_MB4 + 0x0)
+#define PRCM_REQ_MB4_A9WDOG_1			(PRCM_REQ_MB4 + 0x1)
+#define PRCM_REQ_MB4_A9WDOG_2			(PRCM_REQ_MB4 + 0x2)
+#define PRCM_REQ_MB4_A9WDOG_3			(PRCM_REQ_MB4 + 0x3)
+#define A9WDOG_AUTO_OFF_EN			BIT(7)
+#define A9WDOG_AUTO_OFF_DIS			0
+#define A9WDOG_ID_MASK				0xf
 
 /* Mailbox 5 Requests */
 #define PRCM_REQ_MB5_I2C_SLAVE_OP	(PRCM_REQ_MB5 + 0x0)
@@ -507,12 +519,17 @@ static const char *hwacc_ret_regulator_name[NUM_HW_ACC] = {
 #define PRCMU_CLK_38_SRC		(1 << 10)
 #define PRCMU_CLK_38_DIV		(1 << 11)
 
+extern unsigned int lcd_type;
+
 /* PLLDIV=12, PLLSW=4 (PLLDDR) */
 #define PRCMU_DSI_CLOCK_SETTING		0x0000008C
 
 #if defined(CONFIG_MACH_JANICE) || defined(CONFIG_MACH_CODINA)
 #define PRCMU_DPI_CLOCK_SETTING		((4 << PRCMU_CLK_PLL_SW_SHIFT) | \
 					  (8 << PRCMU_CLK_PLL_DIV_SHIFT))
+#define PRCMU_DPI_CLOCK_SETTING_SHARP	((4 << PRCMU_CLK_PLL_SW_SHIFT) | \
+					(13 << PRCMU_CLK_PLL_DIV_SHIFT))
+
 #else
 /* DPI 80000000 Hz */
 #define PRCMU_DPI_CLOCK_SETTING		((4 << PRCMU_CLK_PLL_SW_SHIFT) | \
@@ -610,7 +627,14 @@ int prcmu_set_display_clocks(void)
 #ifdef CONFIG_MCDE_DISPLAY_DPI_MAIN
 	/* Keep the LCDCLK boot state to preserve the boot splash screen. */
 	reg = readl(_PRCMU_BASE + PRCM_LCDCLK_MGT) & PRCMU_CLK_EN;
-	writel(PRCMU_DPI_CLOCK_SETTING | reg, (_PRCMU_BASE + PRCM_LCDCLK_MGT));
+	#ifdef CONFIG_MACH_CODINA
+	if (lcd_type == 8)
+		writel(PRCMU_DPI_CLOCK_SETTING_SHARP | reg, (_PRCMU_BASE + PRCM_LCDCLK_MGT));
+	else
+		writel(PRCMU_DPI_CLOCK_SETTING | reg, (_PRCMU_BASE + PRCM_LCDCLK_MGT));
+	#else
+		writel(PRCMU_DPI_CLOCK_SETTING | reg, (_PRCMU_BASE + PRCM_LCDCLK_MGT));
+	#endif
 #else
 	writel(PRCMU_DPI_CLOCK_SETTING, (_PRCMU_BASE + PRCM_LCDCLK_MGT));
 #endif
@@ -1008,12 +1032,14 @@ unlock_and_return:
 int prcmu_set_ape_opp(u8 opp)
 {
 	int r = 0;
+	u8 prcmu_opp_req;
 
 	if (opp == mb1_transfer.ape_opp)
 		return 0;
 
 	mutex_lock(&mb1_transfer.lock);
 
+	/* Exit APE_50_PARTLY_25_OPP */
 	if (mb1_transfer.ape_opp == APE_50_PARTLY_25_OPP)
 		request_even_slower_clocks(false);
 
@@ -1023,22 +1049,24 @@ int prcmu_set_ape_opp(u8 opp)
 	while (readl(_PRCMU_BASE + PRCM_MBOX_CPU_VAL) & MBOX_BIT(1))
 		cpu_relax();
 
+	prcmu_opp_req  = (opp == APE_50_PARTLY_25_OPP) ? APE_50_OPP : opp;
+
 	writeb(MB1H_ARM_APE_OPP, (tcdm_base + PRCM_MBOX_HEADER_REQ_MB1));
 	writeb(ARM_NO_CHANGE, (tcdm_base + PRCM_REQ_MB1_ARM_OPP));
-	writeb(((opp == APE_50_PARTLY_25_OPP) ? APE_50_OPP : opp),
-		(tcdm_base + PRCM_REQ_MB1_APE_OPP));
+	writeb(prcmu_opp_req, (tcdm_base + PRCM_REQ_MB1_APE_OPP));
 
 	log_this(130, "OPP", opp, NULL, 0);
 	writel(MBOX_BIT(1), (_PRCMU_BASE + PRCM_MBOX_CPU_SET));
 	wait_for_completion(&mb1_transfer.work);
 
 	if ((mb1_transfer.ack.header != MB1H_ARM_APE_OPP) ||
-		(mb1_transfer.ack.ape_opp != opp))
+	    (mb1_transfer.ack.ape_opp != prcmu_opp_req))
 		r = -EIO;
 
 skip_message:
 	if ((!r && (opp == APE_50_PARTLY_25_OPP)) ||
-		(r && (mb1_transfer.ape_opp == APE_50_PARTLY_25_OPP)))
+	    /* Set APE_50_PARTLY_25_OPP back in case new opp failed */
+	    (r && (mb1_transfer.ape_opp == APE_50_PARTLY_25_OPP)))
 		request_even_slower_clocks(true);
 	if (!r)
 		mb1_transfer.ape_opp = opp;
@@ -1925,6 +1953,70 @@ int prcmu_stop_temp_sense(void)
 	return config_hot_period(0xFFFF);
 }
 
+static int prcmu_a9wdog(u8 cmd, u8 d0, u8 d1, u8 d2, u8 d3)
+{
+
+	mutex_lock(&mb4_transfer.lock);
+
+	while (readl(_PRCMU_BASE + PRCM_MBOX_CPU_VAL) & MBOX_BIT(4))
+		cpu_relax();
+
+	writeb(d0, (tcdm_base + PRCM_REQ_MB4_A9WDOG_0));
+	writeb(d1, (tcdm_base + PRCM_REQ_MB4_A9WDOG_1));
+	writeb(d2, (tcdm_base + PRCM_REQ_MB4_A9WDOG_2));
+	writeb(d3, (tcdm_base + PRCM_REQ_MB4_A9WDOG_3));
+
+	writeb(cmd, (tcdm_base + PRCM_MBOX_HEADER_REQ_MB4));
+
+	writel(MBOX_BIT(4), (_PRCMU_BASE + PRCM_MBOX_CPU_SET));
+	wait_for_completion(&mb4_transfer.work);
+
+	mutex_unlock(&mb4_transfer.lock);
+
+	return 0;
+
+}
+
+int prcmu_config_a9wdog(u8 num, bool sleep_auto_off)
+{
+	BUG_ON(num == 0 || num > 0xf);
+	return prcmu_a9wdog(MB4H_A9WDOG_CONF, num, 0, 0,
+			    sleep_auto_off ? A9WDOG_AUTO_OFF_EN :
+			    A9WDOG_AUTO_OFF_DIS);
+}
+
+int prcmu_enable_a9wdog(u8 id)
+{
+	return prcmu_a9wdog(MB4H_A9WDOG_EN, id, 0, 0, 0);
+}
+
+int prcmu_disable_a9wdog(u8 id)
+{
+	return prcmu_a9wdog(MB4H_A9WDOG_DIS, id, 0, 0, 0);
+}
+
+int prcmu_kick_a9wdog(u8 id)
+{
+	return prcmu_a9wdog(MB4H_A9WDOG_KICK, id, 0, 0, 0);
+}
+
+/*
+ * timeout is 28 bit, in ms.
+ */
+int prcmu_load_a9wdog(u8 id, u32 timeout)
+{
+	return prcmu_a9wdog(MB4H_A9WDOG_LOAD,
+			    (id & A9WDOG_ID_MASK) |
+			    /*
+			     * Put the lowest 28 bits of timeout at
+			     * offset 4. Four first bits are used for id.
+			     */
+			    (u8)((timeout << 4) & 0xf0),
+			    (u8)((timeout >> 4) & 0xff),
+			    (u8)((timeout >> 12) & 0xff),
+			    (u8)((timeout >> 20) & 0xff));
+}
+
 /**
  * prcmu_set_clock_divider() - Configure the clock divider.
  * @clock:	The clock for which the request is made.
@@ -2761,6 +2853,7 @@ retry:
 
 	writel((val | PRCM_HOSTACCESS_REQ_HOSTACCESS_REQ),
 		(_PRCMU_BASE + PRCM_HOSTACCESS_REQ));
+
 /*+ debug patch for sysclk status */
 	if (!wait_for_completion_timeout(&mb0_transfer.ac_wake_work,
 			msecs_to_jiffies(4000))) {
@@ -2780,6 +2873,7 @@ retry:
 		mutex_unlock(&mb0_transfer.ac_wake_lock);
 		return -EFAULT;
 	}
+
 /*- debug patch for sysclk status */
 	/*
 	 * The modem can generate an AC_WAKE_ACK, and then still go to sleep.
@@ -3048,6 +3142,11 @@ static bool read_mailbox_4(void)
 	case MB4H_HOTDOG:
 	case MB4H_HOTMON:
 	case MB4H_HOT_PERIOD:
+	case MB4H_A9WDOG_CONF:
+	case MB4H_A9WDOG_EN:
+	case MB4H_A9WDOG_DIS:
+	case MB4H_A9WDOG_LOAD:
+	case MB4H_A9WDOG_KICK:
 		break;
 	default:
 		print_unknown_header_warning(4, header);

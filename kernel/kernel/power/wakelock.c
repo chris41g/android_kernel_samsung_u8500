@@ -137,6 +137,11 @@ static int wakelock_stats_show(struct seq_file *m, void *unused)
 	int ret;
 	int type;
 
+	if (m == NULL) {
+		pr_info("[WAKELOCK] wakelock_stats_show is abnormal state. !\n");
+		return 0;
+	}
+
 	spin_lock_irqsave(&list_lock, irqflags);
 
 	ret = seq_puts(m, "name\tcount\texpire_count\twake_count\tactive_since"

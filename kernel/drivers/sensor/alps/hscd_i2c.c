@@ -26,7 +26,6 @@
 #define HSCD_CTRL1		0x1b
 #define HSCD_CTRL2		0x1c
 #define HSCD_CTRL3		0x1d
-#define HSCD_CTRL4		0x28
 
 /* hscd chip id */
 #define DEVICE_ID	0x49
@@ -172,6 +171,9 @@ static int hscd_self_test_A(void)
 
 	/* Get inital value of self-test-A register  */
 	buf[0] = HSCD_STBA;
+	hscd_i2c_readm(buf, 1);
+	mdelay(1);
+	buf[0] = HSCD_STBA;
 	if (hscd_i2c_readm(buf, 1))
 		return 1;
 
@@ -186,7 +188,7 @@ static int hscd_self_test_A(void)
 	buf[1] = 0x20;
 	if (hscd_i2c_writem(buf, 2))
 		return 1;
-	mdelay(1);
+	mdelay(3);
 
 	/* Get 1st value of self-test-A register  */
 	buf[0] = HSCD_STBA;
@@ -235,6 +237,12 @@ static int hscd_self_test_B(void)
 
 	/* Get inital value of self-test-B register  */
 	buf[0] = HSCD_STBB;
+	hscd_i2c_readm(buf, 1);
+	mdelay(1);
+	buf[0] = HSCD_STBB;
+	hscd_i2c_readm(buf, 1);
+	mdelay(1);
+	buf[0] = HSCD_STBB;
 	if (hscd_i2c_readm(buf, 1))
 		return 1;
 
@@ -259,7 +267,7 @@ static int hscd_self_test_B(void)
 			rc = 1;
 			break;
 		}
-		mdelay(4);
+		mdelay(10);
 
 		/* Get 1st value of self-test-A register  */
 		buf[0] = HSCD_STBB;
@@ -274,14 +282,9 @@ static int hscd_self_test_B(void)
 						__func__, buf[0]);
 				rc = 3;
 				break;
-			} else {
-				pr_err("%s: self-test-B, 1st value is 0x%x\n",
-						__func__, buf[0]);
-				rc = 0;
-				break;
 			}
 		}
-		mdelay(1);
+		mdelay(3);
 
 		/* Get 2nd value of self-test-B register  */
 		buf[0] = HSCD_STBB;
@@ -356,10 +359,8 @@ int hscd_activate(int flgatm, int flg, int dtime)
 			buf[1] = (0x60 | (3 << 2));
 		else if (dtime <=  20)	/* 50Hz-20msec */
 			buf[1] = (0x60 | (2 << 2));
-		else if (dtime <=  60)	/* 20Hz-50msec */
+		else	/* 20Hz-50msec */
 			buf[1] = (0x60 | (1 << 2));
-		else	/* 10Hz-100msec */
-			buf[1] = (0x60 | (0 << 2));
 
 		buf[0] = HSCD_CTRL1;
 		buf[1] |= (1 << 7);
@@ -634,6 +635,6 @@ static void __exit hscd_exit(void)
 module_init(hscd_init);
 module_exit(hscd_exit);
 
-MODULE_DESCRIPTION("Alps hscd Device");
-MODULE_AUTHOR("ALPS");
+MODULE_DESCRIPTION("Alps HSCDTD Device");
+MODULE_AUTHOR("ALPS ELECTROIC CO., LTD.");
 MODULE_LICENSE("GPL v2");

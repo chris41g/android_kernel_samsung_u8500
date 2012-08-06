@@ -308,8 +308,13 @@ static u32 get_remaining_sleep_time(ktime_t *next, int *on_cpu)
 		t = per_cpu(cpu_state, cpu)->sched_wake_up;
 
 		delta = ktime_to_us(ktime_sub(t, now));
-		if ((delta < remaining_sleep_time) && (delta > 0)) {
-			remaining_sleep_time = (u32)delta;
+
+		if (delta < remaining_sleep_time) {
+			if (delta > 0)
+				remaining_sleep_time = (u32)delta;
+			else
+				remaining_sleep_time = 0;
+
 			if (next)
 				(*next) = t;
 			if (on_cpu)
@@ -328,7 +333,7 @@ static bool is_last_cpu_running(void)
 }
 
 static int determine_sleep_state(u32 *sleep_time, int loc_idle_counter,
-				 bool gic_frozen)
+				 bool gic_frozen, ktime_t *est_wake_time)
 {
 	int i;
 
@@ -378,9 +383,9 @@ static int determine_sleep_state(u32 *sleep_time, int loc_idle_counter,
 	}
 
 
-	(*sleep_time) = get_remaining_sleep_time(NULL, NULL);
+	(*sleep_time) = get_remaining_sleep_time(est_wake_time, NULL);
 
-	if ((*sleep_time) == UINT_MAX)
+	if (((*sleep_time) == UINT_MAX) || ((*sleep_time) == 0))
 		return CI_WFI;
 	/*
 	 * Never go deeper than the governor recommends even though it might be
@@ -424,6 +429,7 @@ static int enter_sleep(struct cpuidle_device *dev,
 	int sleep_time = 0;
 	s64 diff;
 	int ret;
+	int rtcrtt_program_time = NO_SLEEP_PROGRAMMED;
 	int target;
 	struct cpu_state *state;
 	bool slept_well = false;
@@ -431,6 +437,7 @@ static int enter_sleep(struct cpuidle_device *dev,
 	bool migrate_timer;
 	bool master = false;
 	int loc_idle_counter;
+	ktime_t est_wake_time;
 
 	local_irq_disable();
 
@@ -438,7 +445,8 @@ static int enter_sleep(struct cpuidle_device *dev,
 
 	state = per_cpu(cpu_state, smp_processor_id());
 
-	wake_up = ktime_add(time_enter, tick_nohz_get_sleep_length());
+	est_wake_time = wake_up = ktime_add(time_enter,
+					    tick_nohz_get_sleep_length());
 
 	spin_lock(&cpuidle_lock);
 
@@ -464,7 +472,8 @@ static int enter_sleep(struct cpuidle_device *dev,
 	 * Determine sleep state considering both CPUs and
 	 * shared resources like e.g. VAPE
 	 */
-	target = determine_sleep_state(&sleep_time, loc_idle_counter, false);
+	target = determine_sleep_state(&sleep_time, loc_idle_counter, false,
+				       &est_wake_time);
 
 	if (target < 0)
 		/* "target" will be last_state in the cpuidle framework */
@@ -499,7 +508,7 @@ static int enter_sleep(struct cpuidle_device *dev,
 		 */
 		if (target != determine_sleep_state(&sleep_time,
 						    loc_idle_counter,
-						    true)) {
+						    true, &est_wake_time)) {
 			atomic_dec(&master_counter);
 			goto exit;
 		}
@@ -523,7 +532,6 @@ static int enter_sleep(struct cpuidle_device *dev,
 	}
 
 	if (master && (cstates[target].APE == APE_OFF)) {
-		ktime_t est_wake_time;
 		int wake_cpu;
 
 		/* We are going to sleep or deep sleep => prepare for it */
@@ -533,7 +541,7 @@ static int enter_sleep(struct cpuidle_device *dev,
 		sleep_time = get_remaining_sleep_time(&est_wake_time,
 						      &wake_cpu);
 
-		if (sleep_time == UINT_MAX) {
+		if ((sleep_time == UINT_MAX) || (sleep_time == 0)) {
 			atomic_dec(&master_counter);
 			goto exit;
 		}
@@ -552,6 +560,7 @@ static int enter_sleep(struct cpuidle_device *dev,
 		sleep_time -= MIN_SLEEP_WAKE_UP_LATENCY;
 
 		ux500_rtcrtt_next(sleep_time);
+		rtcrtt_program_time = sleep_time;
 
 		/*
 		 * Make sure the cpu that is scheduled first gets
@@ -602,6 +611,13 @@ static int enter_sleep(struct cpuidle_device *dev,
 
 	ux500_ci_dbg_log(target, time_enter);
 
+	ux500_ci_dbg_log_post_mortem(target,
+				     time_enter,
+				     est_wake_time,
+				     state->sched_wake_up,
+				     rtcrtt_program_time,
+				     master);
+
 	if (master && cstates[target].ARM != ARM_ON)
 		prcmu_set_power_state(cstates[target].pwrst,
 				      cstates[target].UL_PLL,
@@ -626,6 +642,8 @@ static int enter_sleep(struct cpuidle_device *dev,
 		ux500_ci_dbg_wake_latency(target, sleep_time);
 
 	time_wake = ktime_get();
+
+	ux500_ci_dbg_wake_time(time_wake);
 
 	slept_well = true;
 

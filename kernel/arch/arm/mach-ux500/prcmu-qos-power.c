@@ -118,7 +118,7 @@ static struct prcmu_qos_object *prcmu_qos_array[] = {
 static DEFINE_MUTEX(prcmu_qos_mutex);
 static DEFINE_SPINLOCK(prcmu_qos_lock);
 
-static bool ape_opp_forced_to_50_partly_25;
+static bool ape_opp_50_partly_25_enabled;
 
 static unsigned long cpufreq_opp_delay = HZ / 5;
 
@@ -268,7 +268,10 @@ static void update_target(int target)
 	case PRCMU_QOS_APE_OPP:
 		switch (extreme_value) {
 		case 50:
-			op = APE_50_OPP;
+			if (ape_opp_50_partly_25_enabled)
+				op = APE_50_PARTLY_25_OPP;
+			else
+				op = APE_50_OPP;
 			pr_debug("prcmu qos: set ape opp to 50%%\n");
 			break;
 		case 100:
@@ -280,9 +283,7 @@ static void update_target(int target)
 			       extreme_value);
 			goto unlock_and_return;
 		}
-
-		if (!ape_opp_forced_to_50_partly_25)
-			(void)prcmu_set_ape_opp(op);
+		(void)prcmu_set_ape_opp(op);
 		prcmu_debug_ape_opp_log(op);
 		break;
 	case PRCMU_QOS_ARM_OPP:
@@ -315,33 +316,32 @@ void prcmu_qos_force_opp(int prcmu_qos_class, s32 i)
 
 void prcmu_qos_voice_call_override(bool enable)
 {
-	u8 op;
+	int ape_opp;
+	static u32 old_opp_delay =  HZ/5;
 
 	mutex_lock(&prcmu_qos_mutex);
 
-	ape_opp_forced_to_50_partly_25 = enable;
+	ape_opp_50_partly_25_enabled = enable;
 
 	if (enable) {
-		(void)prcmu_set_ape_opp(APE_50_PARTLY_25_OPP);
-		goto unlock_and_return;
+		old_opp_delay = cpufreq_opp_delay;
+		cpufreq_opp_delay = HZ;
+	} else {
+		/*
+		 * All changes done through debugfs during the time when
+		 * prcmu_qos_voice_call_override is enabled, will be lost
+		 */
+		cpufreq_opp_delay = old_opp_delay;
+	}
+	ape_opp = prcmu_get_ape_opp();
+
+	if (ape_opp == APE_50_OPP) {
+		if (enable)
+			prcmu_set_ape_opp(APE_50_PARTLY_25_OPP);
+		else
+			prcmu_set_ape_opp(APE_50_OPP);
 	}
 
-	/* Disable: set the OPP according to the current target value. */
-	switch (atomic_read(
-			&prcmu_qos_array[PRCMU_QOS_APE_OPP]->target_value)) {
-	case 50:
-		op = APE_50_OPP;
-		break;
-	case 100:
-		op = APE_100_OPP;
-		break;
-	default:
-		goto unlock_and_return;
-	}
-
-	(void)prcmu_set_ape_opp(op);
-
-unlock_and_return:
 	mutex_unlock(&prcmu_qos_mutex);
 }
 

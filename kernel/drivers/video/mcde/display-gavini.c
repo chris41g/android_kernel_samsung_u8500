@@ -19,7 +19,7 @@
  * with this program; if not, write to the Free Software Foundation, Inc.,
  * 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  */
- 
+
 #include <linux/wait.h>
 #include <linux/fb.h>
 #include <linux/delay.h>
@@ -49,33 +49,33 @@
 #include <mach/../../pins-db8500.h>
 #include <mach/../../pins.h>
 
-#define SLEEPMSEC		0x1000
-#define ENDDEF			0x2000
-#define	DEFMASK			0xFF00
+#define SLEEPMSEC	0x1000
+#define ENDDEF		0x2000
+#define	DEFMASK		0xFF00
 #define COMMAND_ONLY	0xFE
-#define DATA_ONLY		0xFF
+#define DATA_ONLY	0xFF
 
-#define LCD_POWER_UP		1
-#define LCD_POWER_DOWN		0
-#define LDI_STATE_ON		1
-#define LDI_STATE_OFF		0
+#define LCD_POWER_UP	1
+#define LCD_POWER_DOWN	0
+#define LDI_STATE_ON	1
+#define LDI_STATE_OFF	0
 
 #define POWER_IS_ON(pwr)	((pwr) <= FB_BLANK_NORMAL)
 
-#define ESD_PORT_NUM 93
+#define ESD_PORT_NUM	93
 #define ESD_OPERATION
 /*
 #define ESD_TEST
 */
 
 
-/* Time between SCI probe or resume and panel initialisation sequence (to 
+/* Time between SCI probe or resume and panel initialisation sequence (to
      allow MCDE to complete initialisation and start DOTCLK).
 */
 #define POWER_ON_WAIT_PERIOD_MS 2
 
 /* to be removed when display works */
-//#define dev_dbg	dev_info
+/* #define dev_dbg	dev_info */
 
 extern unsigned int system_rev;
 
@@ -84,40 +84,40 @@ struct ux500_pins *dpi_pins;
 #endif
 
 struct gavini_lcd_driver {
-	struct device			*dev;
-	struct spi_device		*spi;
-	struct mutex		    lock;
-	struct timer_list	    timer;
-	struct work_struct	    work;
-	unsigned int 			beforepower;
-	unsigned int			power;
-	unsigned int 			ldi_state;
+	struct device				*dev;
+	struct spi_device			*spi;
+	struct mutex				lock;
+	struct timer_list			timer;
+	struct work_struct			work;
+	unsigned int				beforepower;
+	unsigned int				power;
+	unsigned int				ldi_state;
 	struct lcd_device			*ld;
-	struct mcde_display_device 	*mdd;
-	struct ssg_dpi_display_platform_data		*pd;
-	struct backlight_device	*bd;
-	unsigned int			current_bl;
-	unsigned int			goal_bl;
+	struct mcde_display_device		*mdd;
+	struct ssg_dpi_display_platform_data	*pd;
+	struct backlight_device			*bd;
+	unsigned int				current_bl;
+	unsigned int				goal_bl;
 
 #ifdef ESD_OPERATION
-		unsigned int					lcd_connected;
-		unsigned int					esd_enable;
-		unsigned int					esd_port;
-		struct workqueue_struct		*esd_workqueue;
-		struct work_struct			esd_work;
+	unsigned int				lcd_connected;
+	unsigned int				esd_enable;
+	unsigned int				esd_port;
+	struct workqueue_struct			*esd_workqueue;
+	struct work_struct			esd_work;
 #ifdef ESD_TEST
-		struct timer_list				esd_test_timer;
+	struct timer_list			esd_test_timer;
 #endif
 #endif
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
-	struct early_suspend    earlysuspend;
+	struct early_suspend			earlysuspend;
 #endif
 };
 
 struct gavini_spi_driver {
-		struct spi_driver	base;
-		struct gavini_lcd_driver		* lcd;
+	struct spi_driver			base;
+	struct gavini_lcd_driver		*lcd;
 };
 
 #ifdef ESD_OPERATION
@@ -126,8 +126,8 @@ struct gavini_lcd_driver *pdpi;
 #endif
 #endif
 
-#define LDI_ON_STATUS 1
-#define LDI_OFF_STATUS 0
+#define LDI_ON_STATUS		1
+#define LDI_OFF_STATUS		0
 
 #define MIN_BRIGHTNESS		0
 #define MAX_BRIGHTNESS		255
@@ -137,328 +137,310 @@ struct gavini_lcd_driver *pdpi;
 #define MAX_SUPP_BRIGHTNESS	10
 #define MAX_REQ_BRIGHTNESS	255
 
-#define DIM_BL 20
-#define MIN_BL 30
-#define MAX_BL 255
-#define MAX_GAMMA_VALUE 25
+#define DIM_BL			20
+#define MIN_BL			30
+#define MAX_BL			255
+#define MAX_GAMMA_VALUE		25
 
-static const unsigned short SET_DISPLAY_ON[] =
-{
-    0x29,       COMMAND_ONLY,
-    ENDDEF,     0x00
+static const unsigned short SET_DISPLAY_ON[] = {
+	0x29,			COMMAND_ONLY,
+	ENDDEF,		0x00
 };
 
-static const unsigned short SET_DISPLAY_OFF[] =
-{
-    0x28,       COMMAND_ONLY,
-    ENDDEF,     0x00
+static const unsigned short SET_DISPLAY_OFF[] = {
+	0x28,			COMMAND_ONLY,
+	ENDDEF,		0x00
 };
 
-static const unsigned short ENTER_SLEEP_MODE[] =
-{
-    0x10,       COMMAND_ONLY,
-    ENDDEF,     0x00
+static const unsigned short ENTER_SLEEP_MODE[] = {
+	0x10,			COMMAND_ONLY,
+	ENDDEF,		0x00
 };
 
-static const unsigned short EXIT_SLEEP_MODE[] =
-{
-    0x11,       COMMAND_ONLY,
-    ENDDEF,     0x00
+static const unsigned short EXIT_SLEEP_MODE[] = {
+	0x11,			COMMAND_ONLY,
+	ENDDEF,		0x00
 };
 
-static const unsigned short SMD_FLIP_VERTICAL[] =
-{
+static const unsigned short SMD_FLIP_VERTICAL[] = {
 	0x36,			COMMAND_ONLY,
-	DATA_ONLY, 			0x0A,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x0A,
+	ENDDEF,		0x00
 };
 
-static const unsigned short ACCESS_PROTECT_OFF[] =
-{
+static const unsigned short ACCESS_PROTECT_OFF[] = {
 	0xB0,			COMMAND_ONLY,
-	DATA_ONLY, 			0x00,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x00,
+	ENDDEF,		0x00
 };
 
-static const unsigned short SMD_PANEL_DRIVING[] =
-{
+static const unsigned short SMD_PANEL_DRIVING[] = {
 	0xC0,			COMMAND_ONLY,
-	DATA_ONLY, 			0x28,
-	DATA_ONLY,				0x08,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x28,
+	DATA_ONLY,			0x08,
+	ENDDEF,		0x00
 };
 
-static const unsigned short SMD_SOURCE_CONTROL[] =
-{
+static const unsigned short SMD_SOURCE_CONTROL[] = {
 	0xC1,			COMMAND_ONLY,
-	DATA_ONLY, 			0x01,
-	DATA_ONLY,				0x30,
-	DATA_ONLY,				0x15,
-	DATA_ONLY,				0x05,
-	DATA_ONLY,				0x22,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x01,
+	DATA_ONLY,			0x30,
+	DATA_ONLY,			0x15,
+	DATA_ONLY,			0x05,
+	DATA_ONLY,			0x22,
+	ENDDEF,		0x00
 };
 
-static const unsigned short SMD_GATE_INTERFACE[] =
-{
+static const unsigned short SMD_GATE_INTERFACE[] = {
 	0xC4,			COMMAND_ONLY,
-	DATA_ONLY, 			0x10,
-	DATA_ONLY,				0x01,
-	DATA_ONLY,				0x00,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x10,
+	DATA_ONLY,			0x01,
+	DATA_ONLY,			0x00,
+	ENDDEF,		0x00
 };
 
-static const unsigned short SMD_DISPLAY_H_TIMMING[] =
-{
+static const unsigned short SMD_DISPLAY_H_TIMMING[] = {
 	0xC5,			COMMAND_ONLY,
-	DATA_ONLY, 			0x06,
-	DATA_ONLY,				0x55,
-	DATA_ONLY,				0x03,
-	DATA_ONLY, 			0x07,
-	DATA_ONLY,				0x0B,
-	DATA_ONLY,				0x33,
-	DATA_ONLY, 			0x00,
-	DATA_ONLY,				0x01,
-	DATA_ONLY,				0x03,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x06,
+	DATA_ONLY,			0x55,
+	DATA_ONLY,			0x03,
+	DATA_ONLY,			0x07,
+	DATA_ONLY,			0x0B,
+	DATA_ONLY,			0x33,
+	DATA_ONLY,			0x00,
+	DATA_ONLY,			0x01,
+	DATA_ONLY,			0x03,
+	ENDDEF,		0x00
 };
 
-static const unsigned short SMD_RGB_SYNC_OPTION[] =
-{
+static const unsigned short SMD_RGB_SYNC_OPTION[] = {
 	0xC6,			COMMAND_ONLY,
-	DATA_ONLY,				0x01,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x01,
+	ENDDEF,		0x00
 };
 
 
-static const unsigned short SMD_GAMMA_SET_RED[] =
-{
+static const unsigned short SMD_GAMMA_SET_RED[] = {
 	0xC8,			COMMAND_ONLY,
-	DATA_ONLY, 			0x00,
-	DATA_ONLY,				0x42,
-	DATA_ONLY,				0x10,
-	DATA_ONLY, 			0x1D,
-	DATA_ONLY,				0x31,
-	DATA_ONLY,				0x3A,
-	DATA_ONLY, 			0x3A,
-	DATA_ONLY,				0x3D,
-	DATA_ONLY,				0x3B,
-	DATA_ONLY, 			0x42,
-	DATA_ONLY,				0x49,
-	DATA_ONLY,				0x48,
-	DATA_ONLY, 			0x48,
-	DATA_ONLY,				0x44,
-	DATA_ONLY,				0x48,
-	DATA_ONLY, 			0x59,
-	DATA_ONLY,				0x55,
-	DATA_ONLY,				0x57,
-	DATA_ONLY, 			0x14,
-	DATA_ONLY,				0x00,
-	DATA_ONLY,				0x42,
-	DATA_ONLY, 			0x10,
-	DATA_ONLY,				0x1D,
-	DATA_ONLY,				0x31,
-	DATA_ONLY, 			0x3A,
-	DATA_ONLY,				0x3A,
-	DATA_ONLY,				0x3D,
-	DATA_ONLY, 			0x3B,
-	DATA_ONLY,				0x42,
-	DATA_ONLY,				0x49,
-	DATA_ONLY, 			0x48,
-	DATA_ONLY,				0x48,
-	DATA_ONLY,				0x44,
-	DATA_ONLY, 			0x48,
-	DATA_ONLY,				0x59,
-	DATA_ONLY,				0x55,
-	DATA_ONLY,				0x57,
-	DATA_ONLY,				0x14,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x00,
+	DATA_ONLY,			0x0A,
+	DATA_ONLY,			0x31,
+	DATA_ONLY,			0x3B,
+	DATA_ONLY,			0x4E,
+	DATA_ONLY,			0x58,
+	DATA_ONLY,			0x59,
+	DATA_ONLY,			0x5B,
+	DATA_ONLY,			0x58,
+	DATA_ONLY,			0x5E,
+	DATA_ONLY,			0x62,
+	DATA_ONLY,			0x60,
+	DATA_ONLY,			0x61,
+	DATA_ONLY,			0x5E,
+	DATA_ONLY,			0x62,
+	DATA_ONLY,			0x55,
+	DATA_ONLY,			0x55,
+	DATA_ONLY,			0x7F,
+	DATA_ONLY,			0x08,
+	DATA_ONLY,			0x00,
+	DATA_ONLY,			0x0A,
+	DATA_ONLY,			0x31,
+	DATA_ONLY,			0x3B,
+	DATA_ONLY,			0x4E,
+	DATA_ONLY,			0x58,
+	DATA_ONLY,			0x59,
+	DATA_ONLY,			0x5B,
+	DATA_ONLY,			0x58,
+	DATA_ONLY,			0x5E,
+	DATA_ONLY,			0x62,
+	DATA_ONLY,			0x60,
+	DATA_ONLY,			0x61,
+	DATA_ONLY,			0x5E,
+	DATA_ONLY,			0x62,
+	DATA_ONLY,			0x55,
+	DATA_ONLY,			0x55,
+	DATA_ONLY,			0x7F,
+	DATA_ONLY,			0x08,
+	ENDDEF,		0x00
 };
 
-static const unsigned short SMD_GAMMA_SET_GREEN[] =
-{
+static const unsigned short SMD_GAMMA_SET_GREEN[] = {
 	0xC9,			COMMAND_ONLY,
-	DATA_ONLY, 			0x00,
-	DATA_ONLY,				0x38,
-	DATA_ONLY,				0x14,
-	DATA_ONLY, 			0x20,
-	DATA_ONLY,				0x35,
-	DATA_ONLY,				0x3E,
-	DATA_ONLY, 			0x40,
-	DATA_ONLY,				0x44,
-	DATA_ONLY,				0x42,
-	DATA_ONLY, 			0x48,
-	DATA_ONLY,				0x4F,
-	DATA_ONLY,				0x4E,
-	DATA_ONLY, 			0x4E,
-	DATA_ONLY,				0x4A,
-	DATA_ONLY,				0x4D,
-	DATA_ONLY, 			0x68,
-	DATA_ONLY,				0x5C,
-	DATA_ONLY,				0x5C,
-	DATA_ONLY, 			0x16,
-	DATA_ONLY,				0x00,
-	DATA_ONLY,				0x38,
-	DATA_ONLY, 			0x14,
-	DATA_ONLY,				0x20,
-	DATA_ONLY,				0x35,
-	DATA_ONLY, 			0x3E,
-	DATA_ONLY,				0x40,
-	DATA_ONLY,				0x44,
-	DATA_ONLY, 			0x42,
-	DATA_ONLY,				0x48,
-	DATA_ONLY,				0x4F,
-	DATA_ONLY, 			0x4E,
-	DATA_ONLY,				0x4E,
-	DATA_ONLY,				0x4A,
-	DATA_ONLY, 			0x4D,
-	DATA_ONLY,				0x68,
-	DATA_ONLY,				0x5C,
-	DATA_ONLY,				0x5C,
-	DATA_ONLY,				0x16,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x00,
+	DATA_ONLY,			0x25,
+	DATA_ONLY,			0x15,
+	DATA_ONLY,			0x28,
+	DATA_ONLY,			0x3D,
+	DATA_ONLY,			0x4A,
+	DATA_ONLY,			0x48,
+	DATA_ONLY,			0x4C,
+	DATA_ONLY,			0x4A,
+	DATA_ONLY,			0x52,
+	DATA_ONLY,			0x59,
+	DATA_ONLY,			0x59,
+	DATA_ONLY,			0x5B,
+	DATA_ONLY,			0x56,
+	DATA_ONLY,			0x60,
+	DATA_ONLY,			0x5D,
+	DATA_ONLY,			0x55,
+	DATA_ONLY,			0x7F,
+	DATA_ONLY,			0x0A,
+	DATA_ONLY,			0x00,
+	DATA_ONLY,			0x25,
+	DATA_ONLY,			0x15,
+	DATA_ONLY,			0x28,
+	DATA_ONLY,			0x3D,
+	DATA_ONLY,			0x4A,
+	DATA_ONLY,			0x48,
+	DATA_ONLY,			0x4C,
+	DATA_ONLY,			0x4A,
+	DATA_ONLY,			0x52,
+	DATA_ONLY,			0x59,
+	DATA_ONLY,			0x59,
+	DATA_ONLY,			0x5B,
+	DATA_ONLY,			0x56,
+	DATA_ONLY,			0x60,
+	DATA_ONLY,			0x5D,
+	DATA_ONLY,			0x55,
+	DATA_ONLY,			0x7F,
+	DATA_ONLY,			0x0A,
+	ENDDEF,		0x00
 };
 
-static const unsigned short SMD_GAMMA_SET_BLUE[] =
-{
+static const unsigned short SMD_GAMMA_SET_BLUE[] = {
 	0xCA,			COMMAND_ONLY,
-	DATA_ONLY, 			0x00,
-	DATA_ONLY,				0x6B,
-	DATA_ONLY,				0x0B,
-	DATA_ONLY, 			0x12,
-	DATA_ONLY,				0x22,
-	DATA_ONLY,				0x28,
-	DATA_ONLY, 			0x28,
-	DATA_ONLY,				0x2B,
-	DATA_ONLY,				0x2A,
-	DATA_ONLY, 			0x33,
-	DATA_ONLY,				0x3B,
-	DATA_ONLY,				0x3B,
-	DATA_ONLY, 			0x3D,
-	DATA_ONLY,				0x3B,
-	DATA_ONLY,				0x44,
-	DATA_ONLY, 			0x5D,
-	DATA_ONLY,				0x51,
-	DATA_ONLY,				0x51,
-	DATA_ONLY, 			0x18,
-	DATA_ONLY,				0x00,
-	DATA_ONLY,				0x6B,
-	DATA_ONLY, 			0x0B,
-	DATA_ONLY,				0x12,
-	DATA_ONLY,				0x22,
-	DATA_ONLY, 			0x28,
-	DATA_ONLY,				0x28,
-	DATA_ONLY,				0x2B,
-	DATA_ONLY, 			0x2A,
-	DATA_ONLY,				0x33,
-	DATA_ONLY,				0x3B,
-	DATA_ONLY, 			0x3B,
-	DATA_ONLY,				0x3D,
-	DATA_ONLY,				0x3B,
-	DATA_ONLY, 			0x44,
-	DATA_ONLY,				0x5D,
-	DATA_ONLY,				0x51,
-	DATA_ONLY,				0x51,
-	DATA_ONLY,				0x18,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x00,
+	DATA_ONLY,			0x48,
+	DATA_ONLY,			0x10,
+	DATA_ONLY,			0x1F,
+	DATA_ONLY,			0x2F,
+	DATA_ONLY,			0x35,
+	DATA_ONLY,			0x38,
+	DATA_ONLY,			0x3D,
+	DATA_ONLY,			0x3C,
+	DATA_ONLY,			0x45,
+	DATA_ONLY,			0x4D,
+	DATA_ONLY,			0x4E,
+	DATA_ONLY,			0x52,
+	DATA_ONLY,			0x51,
+	DATA_ONLY,			0x60,
+	DATA_ONLY,			0x7F,
+	DATA_ONLY,			0x7E,
+	DATA_ONLY,			0x7F,
+	DATA_ONLY,			0x0C,
+	DATA_ONLY,			0x00,
+	DATA_ONLY,			0x48,
+	DATA_ONLY,			0x10,
+	DATA_ONLY,			0x1F,
+	DATA_ONLY,			0x2F,
+	DATA_ONLY,			0x35,
+	DATA_ONLY,			0x38,
+	DATA_ONLY,			0x3D,
+	DATA_ONLY,			0x3C,
+	DATA_ONLY,			0x45,
+	DATA_ONLY,			0x4D,
+	DATA_ONLY,			0x4E,
+	DATA_ONLY,			0x52,
+	DATA_ONLY,			0x51,
+	DATA_ONLY,			0x60,
+	DATA_ONLY,			0x7F,
+	DATA_ONLY,			0x7E,
+	DATA_ONLY,			0x7F,
+	DATA_ONLY,			0x0C,
+	ENDDEF,		0x00
 };
 
-static const unsigned short SMD_BIAS_CURRENT_CTRL[] =
-{
+static const unsigned short SMD_BIAS_CURRENT_CTRL[] = {
 	0xD1,			COMMAND_ONLY,
-	DATA_ONLY, 			0x33,
-	DATA_ONLY,				0x13,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x33,
+	DATA_ONLY,			0x13,
+	ENDDEF,		0x00
 };
 
 
-static const unsigned short SMD_DDV_CTRL[] =
-{
+static const unsigned short SMD_DDV_CTRL[] = {
 	0xD2,			COMMAND_ONLY,
-	DATA_ONLY, 			0x11,
-	DATA_ONLY,				0x00,
-	DATA_ONLY,				0x00,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x11,
+	DATA_ONLY,			0x00,
+	DATA_ONLY,			0x00,
+	ENDDEF,		0x00
 };
 
 
-static const unsigned short SMD_GAMMA_CTRL[] =
-{
+static const unsigned short SMD_GAMMA_CTRL[] = {
 	0xD3,			COMMAND_ONLY,
-	DATA_ONLY, 			0x50,
-	DATA_ONLY,				0x50,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x50,
+	DATA_ONLY,			0x50,
+	ENDDEF,		0x00
 };
 
-static const unsigned short SMD_DCDC_CTRL[] =
-{
+static const unsigned short SMD_DCDC_CTRL[] = {
 	0xD5,			COMMAND_ONLY,
-	DATA_ONLY, 			0x2F,
-	DATA_ONLY,				0x11,
-	DATA_ONLY, 			0x1E,
-	DATA_ONLY,				0x46,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x2F,
+	DATA_ONLY,			0x11,
+	DATA_ONLY,			0x1E,
+	DATA_ONLY,			0x46,
+	ENDDEF,		0x00
 };
 
-static const unsigned short SMD_VCL_CTRL[] =
-{
+static const unsigned short SMD_VCL_CTRL[] = {
 	0xD6,			COMMAND_ONLY,
-	DATA_ONLY, 			0x11,
-	DATA_ONLY,				0x0A,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x11,
+	DATA_ONLY,			0x0A,
+	ENDDEF,		0x00
 };
 
-static const unsigned short NVM_LOAD_SEQUENCE[] =
-{
-	//0xD4
+static const unsigned short NVM_LOAD_SEQUENCE[] = {
+	/*0xD4*/
 	0xD4,			COMMAND_ONLY,
-	DATA_ONLY, 			0x52,
-	DATA_ONLY,				0x5E,
-	//0xF8
-	0xF8, 			COMMAND_ONLY,
-	DATA_ONLY,				0x01,
-	DATA_ONLY,				0xF5,
-	DATA_ONLY,				0xF2,
-	DATA_ONLY,				0x71,
-	DATA_ONLY,				0x44,
-	//0xFC
-	0xFC, 			COMMAND_ONLY,
-	DATA_ONLY,				0x00,
-	DATA_ONLY,				0x08,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x52,
+	DATA_ONLY,			0x5E,
+	/*0xF8*/
+	0xF8,			COMMAND_ONLY,
+	DATA_ONLY,			0x01,
+	DATA_ONLY,			0xF5,
+	DATA_ONLY,			0xF2,
+	DATA_ONLY,			0x71,
+	DATA_ONLY,			0x44,
+	/*0xFC*/
+	0xFC,			COMMAND_ONLY,
+	DATA_ONLY,			0x00,
+	DATA_ONLY,			0x08,
+	ENDDEF,		0x00
 };
 
-static const unsigned short CABC_TRUN_ON_SEQUENCE[] =
-{
-	//0XB4
+static const unsigned short CABC_TRUN_ON_SEQUENCE[] = {
+	/*0XB4*/
 	0xB4,			COMMAND_ONLY,
-	DATA_ONLY, 			0x0F,
-	DATA_ONLY,				0x00,
-	DATA_ONLY,				0x50,
-	//0xB5
-	0xB5, 			COMMAND_ONLY,
-	DATA_ONLY,				0x80,
-	//0xB7
-	0xB7, 			COMMAND_ONLY,
-	DATA_ONLY,				0x24,
-	//0xB8
-	0xB8, 			COMMAND_ONLY,
-	DATA_ONLY,				0x01,
-	ENDDEF,     0x00
+	DATA_ONLY,			0x0F,
+	DATA_ONLY,			0x00,
+	DATA_ONLY,			0x50,
+	/*0xB5*/
+	0xB5,			COMMAND_ONLY,
+	DATA_ONLY,			0x80,
+	/*0xB7*/
+	0xB7,			COMMAND_ONLY,
+	DATA_ONLY,			0x24,
+	/*0xB8*/
+	0xB8,			COMMAND_ONLY,
+	DATA_ONLY,			0x01,
+	ENDDEF,		0x00
 };
 
 
 static int gavini_power(struct gavini_lcd_driver *lcd, int power);
-static void gavini_power_on(struct gavini_lcd_driver *lcd);
+static int gavini_power_on(struct gavini_lcd_driver *lcd);
 
 #ifdef CONFIG_HAS_EARLYSUSPEND
-static void gavini_mcde_panel_early_suspend(struct early_suspend *earlysuspend);
-static void gavini_mcde_panel_late_resume(struct early_suspend *earlysuspend);
+static void gavini_mcde_panel_early_suspend(struct early_suspend \
+								*earlysuspend);
+static void gavini_mcde_panel_late_resume(struct early_suspend \
+								*earlysuspend);
 #endif
 
-static void gavini_power_on_work_func(struct work_struct* work)
+static void gavini_power_on_work_func(struct work_struct *work)
 {
-	struct gavini_lcd_driver *lcd = container_of(work, struct gavini_lcd_driver, work);
+	struct gavini_lcd_driver *lcd = container_of(work, \
+						struct gavini_lcd_driver, work);
 	gavini_power_on(lcd);
 }
 
@@ -476,21 +458,21 @@ static void gavini_power_on_timer_cb(unsigned long param)
 
 static void gavini_start_power_on_timer(struct gavini_lcd_driver *lcd)
 {
-	INIT_WORK(&lcd->work,gavini_power_on_work_func);
+	INIT_WORK(&lcd->work, gavini_power_on_work_func);
 
 	dev_dbg(lcd->dev, "Invoked %s\n", __func__);
 
-	if (!timer_pending(&lcd->timer)) 
-	{
+	if (!timer_pending(&lcd->timer)) {
+
 		init_timer(&lcd->timer);
-		lcd->timer.expires = jiffies + msecs_to_jiffies(POWER_ON_WAIT_PERIOD_MS);
+		lcd->timer.expires = jiffies \
+				+ msecs_to_jiffies(POWER_ON_WAIT_PERIOD_MS);
+
 		lcd->timer.function = gavini_power_on_timer_cb;
-		lcd->timer.data=(unsigned long)lcd;
+		lcd->timer.data = (unsigned long)lcd;
 		add_timer(&lcd->timer);
 	}
 }
- 
-
 static void gavini_print_vmode(struct mcde_video_mode *vmode)
 {
 	pr_debug("resolution: %dx%d\n", vmode->xres, vmode->yres);
@@ -521,37 +503,41 @@ static int gavini_try_video_mode(
 	#if 0
 	if ((video_mode->xres == pd->video_mode.xres) &&
 		(video_mode->yres == pd->video_mode.yres)) {
-		
-		video_mode->hsw  		= pd->video_mode.hsw;
-		video_mode->hbp  		= pd->video_mode.hbp;
-		video_mode->hfp  		= pd->video_mode.hfp;
-		video_mode->vsw  		= pd->video_mode.vsw;
-		video_mode->vbp 		= pd->video_mode.vbp;
-		video_mode->vfp 		= pd->video_mode.vfp;
-		video_mode->interlaced 	= pd->video_mode.interlaced;
-		video_mode->pixclock 	= pd->video_mode.pixclock;
+
+		video_mode->hsw		= pd->video_mode.hsw;
+		video_mode->hbp		= pd->video_mode.hbp;
+		video_mode->hfp		= pd->video_mode.hfp;
+		video_mode->vsw		= pd->video_mode.vsw;
+		video_mode->vbp		= pd->video_mode.vbp;
+		video_mode->vfp		= pd->video_mode.vfp;
+		video_mode->interlaced	= pd->video_mode.interlaced;
+		video_mode->pixclock	= pd->video_mode.pixclock;
 		res = 0;
 	}
 	#else
-		video_mode->hsw  		= pd->video_mode.hsw;
-		video_mode->hbp  		= pd->video_mode.hbp;
-		video_mode->hfp  		= pd->video_mode.hfp;
-		video_mode->vsw  		= pd->video_mode.vsw;
-		video_mode->vbp 		= pd->video_mode.vbp;
-		video_mode->vfp 		= pd->video_mode.vfp;
-		video_mode->interlaced 	= pd->video_mode.interlaced;
-		video_mode->pixclock 	= pd->video_mode.pixclock;
+		video_mode->hsw		= pd->video_mode.hsw;
+		video_mode->hbp		= pd->video_mode.hbp;
+		video_mode->hfp		= pd->video_mode.hfp;
+		video_mode->vsw		= pd->video_mode.vsw;
+		video_mode->vbp		= pd->video_mode.vbp;
+		video_mode->vfp		= pd->video_mode.vfp;
+		video_mode->interlaced	= pd->video_mode.interlaced;
+		video_mode->pixclock	= pd->video_mode.pixclock;
 		res = 0;
 	#endif
-	
+
 	if (res == 0)
 		gavini_print_vmode(video_mode);
-	else{
+	else {
 		dump_stack();
-		dev_warn(&ddev->dev,
-			"%s:Failed to find video mode x=%d, y=%d, pd->video_mode.xres:%d pd->video_mode.yres:%d\n",
-			__func__, video_mode->xres, video_mode->yres,pd->video_mode.xres,pd->video_mode.yres);
-
+		dev_warn(&ddev->dev,\
+			"%s:Failed to find video mode x=%d,\
+			y=%d, pd->video_mode.xres:%d pd->video_mode.yres:%d\n",\
+			__func__,
+			video_mode->xres,
+			video_mode->yres,
+			pd->video_mode.xres,
+			pd->video_mode.yres);
 	}
 
 	return res;
@@ -577,11 +563,14 @@ static int gavini_set_video_mode(
 
 	pd = ddev->dev.platform_data;
 
-	if ((video_mode->xres == pd->video_mode.xres && video_mode->yres == pd->video_mode.yres) ||
-		(video_mode->xres == pd->video_mode.yres && video_mode->yres == pd->video_mode.xres)) {
+	if ((video_mode->xres == pd->video_mode.xres \
+		&& video_mode->yres == pd->video_mode.yres) \
+		||
+		(video_mode->xres == pd->video_mode.yres \
+		&& video_mode->yres == pd->video_mode.xres)) {
 
 		/* TODO: set resolution dependent driver data here */
-		//driver_data->xxx = yyy;
+		/*driver_data->xxx = yyy;*/
 		res = 0;
 	}
 
@@ -592,7 +581,7 @@ static int gavini_set_video_mode(
 	}
 
 	/* TODO: set general driver data here */
-	//driver_data->xxx = yyy;
+	/*driver_data->xxx = yyy;*/
 
 	channel_video_mode = ddev->video_mode;
 	/* Dependant on if display should rotate or MCDE should rotate */
@@ -636,18 +625,19 @@ static int gavini_spi_write_words(struct gavini_lcd_driver *lcd,
 	spi_message_init(&msg);
 	spi_message_add_tail(&xfer, &msg);
 
-	if(lcd->spi){
+	if (lcd->spi)
 		return spi_sync(lcd->spi, &msg);
-	}else{
+	else
 		return -1;
-	}
 }
 
 static int gavini_panel_send_sequence(struct gavini_lcd_driver *lcd,
 	const unsigned short *wbuf)
 {
 	int ret = 0, i = 0, j = 0;
-	u16 temp[256]={0,};
+	u16 temp[256] = {0,};
+
+	mutex_lock(&lcd->lock);
 
 	while ((wbuf[i] & DEFMASK) != ENDDEF) {
 		if ((wbuf[i] & DEFMASK) != SLEEPMSEC) {
@@ -657,14 +647,17 @@ static int gavini_panel_send_sequence(struct gavini_lcd_driver *lcd,
 				temp[j++] = wbuf[i+1] | 0x100;
 			i += 2;
 		} else {
-			if (j > 0 )
+			if (j > 0)
 				ret = gavini_spi_write_words(lcd, temp, j);
+
 			msleep(wbuf[i+1]);
 			j = 0;
 		}
 	}
-	
+
 	ret = gavini_spi_write_words(lcd, temp, j);
+
+	mutex_unlock(&lcd->lock);
 
 	return ret;
 }
@@ -709,13 +702,62 @@ static void gavini_bl_power(struct gavini_lcd_driver *lcd, int on)
 	dev_dbg(lcd->dev, "%s %s\n", __func__, on > 0 ? "on" : "off");
 }
 
-static void gavini_power_on(struct gavini_lcd_driver *lcd)
+static int gavini_dpi_ldi_init(struct gavini_lcd_driver *lcd)
+{
+	int ret = 0;
+
+	ret |= gavini_panel_send_sequence(lcd, SMD_FLIP_VERTICAL);
+	ret |= gavini_panel_send_sequence(lcd, ACCESS_PROTECT_OFF);
+	ret |= gavini_panel_send_sequence(lcd, SMD_PANEL_DRIVING);
+	ret |= gavini_panel_send_sequence(lcd, SMD_SOURCE_CONTROL);
+	ret |= gavini_panel_send_sequence(lcd, SMD_GATE_INTERFACE);
+	ret |= gavini_panel_send_sequence(lcd, SMD_DISPLAY_H_TIMMING);
+	ret |= gavini_panel_send_sequence(lcd, SMD_RGB_SYNC_OPTION);
+
+	ret |= gavini_panel_send_sequence(lcd, SMD_GAMMA_SET_RED);
+	ret |= gavini_panel_send_sequence(lcd, SMD_GAMMA_SET_GREEN);
+	ret |= gavini_panel_send_sequence(lcd, SMD_GAMMA_SET_BLUE);
+	ret |= gavini_panel_send_sequence(lcd, SMD_BIAS_CURRENT_CTRL);
+	ret |= gavini_panel_send_sequence(lcd, SMD_DDV_CTRL);
+	ret |= gavini_panel_send_sequence(lcd, SMD_GAMMA_CTRL);
+	ret |= gavini_panel_send_sequence(lcd, SMD_DCDC_CTRL);
+	ret |= gavini_panel_send_sequence(lcd, SMD_VCL_CTRL);
+
+	ret |= gavini_panel_send_sequence(lcd, EXIT_SLEEP_MODE);
+	if (lcd->pd->sleep_out_delay)
+		msleep(lcd->pd->sleep_out_delay);
+
+	/*NVM Load Sequence*/
+	ret |= gavini_panel_send_sequence(lcd, NVM_LOAD_SEQUENCE);
+	msleep(150);
+
+	/*CABC TRUN ON SEQUENCE*/
+	if (system_rev < GAVINI_R0_0_C)
+		ret |= gavini_panel_send_sequence(lcd, CABC_TRUN_ON_SEQUENCE);
+
+	return ret;
+}
+
+static int gavini_dpi_ldi_enable(struct gavini_lcd_driver *lcd)
+{
+	int ret = 0;
+
+	ret |= gavini_panel_send_sequence(lcd, SET_DISPLAY_ON);
+
+	if (!ret)
+		lcd->ldi_state = LDI_ON_STATUS;
+
+	dev_dbg(lcd->dev, "ldi power on successful\n");
+
+	return ret;
+}
+static int gavini_power_on(struct gavini_lcd_driver *lcd)
 {
 	struct ssg_dpi_display_platform_data *pd = lcd->pd;
 	int ret = 0;
 
 	dev_dbg(lcd->dev, "Invoked %s\n", __func__);
-	
+
 	if (!pd) {
 		dev_err(lcd->dev, "platform data is NULL.\n");
 		goto err_exit;
@@ -745,66 +787,33 @@ static void gavini_power_on(struct gavini_lcd_driver *lcd)
 			msleep(pd->reset_delay);
 	}
 
-	//init
-	
-	gavini_panel_send_sequence(lcd,SMD_FLIP_VERTICAL);
-	gavini_panel_send_sequence(lcd,ACCESS_PROTECT_OFF);
-	gavini_panel_send_sequence(lcd,SMD_PANEL_DRIVING);
-	gavini_panel_send_sequence(lcd,SMD_SOURCE_CONTROL);
-	gavini_panel_send_sequence(lcd,SMD_GATE_INTERFACE);
-	gavini_panel_send_sequence(lcd,SMD_DISPLAY_H_TIMMING);
-	gavini_panel_send_sequence(lcd,SMD_RGB_SYNC_OPTION);
-	
-	gavini_panel_send_sequence(lcd,SMD_GAMMA_SET_RED);
-	gavini_panel_send_sequence(lcd,SMD_GAMMA_SET_GREEN);
-	gavini_panel_send_sequence(lcd,SMD_GAMMA_SET_BLUE);
-	gavini_panel_send_sequence(lcd,SMD_BIAS_CURRENT_CTRL);
-	gavini_panel_send_sequence(lcd,SMD_DDV_CTRL);
-	gavini_panel_send_sequence(lcd,SMD_GAMMA_CTRL);
-	gavini_panel_send_sequence(lcd,SMD_DCDC_CTRL);
-	gavini_panel_send_sequence(lcd,SMD_VCL_CTRL);
-	
-	if (!ret)
-	{
-		ret = gavini_panel_send_sequence(lcd, EXIT_SLEEP_MODE);
-
-		if (pd->sleep_out_delay)
-			msleep(pd->sleep_out_delay);
-	}
-
-	//NVM Load Sequence
-	ret = gavini_panel_send_sequence(lcd, NVM_LOAD_SEQUENCE);
-	msleep(150);
-
-	//CABC TRUN ON SEQUENCE
-	ret = gavini_panel_send_sequence(lcd, CABC_TRUN_ON_SEQUENCE);
-	
-	if (!ret)
-	{
-		ret = gavini_panel_send_sequence(lcd, SET_DISPLAY_ON);
-	}
+	/*dpi ldi init*/
+	ret = gavini_dpi_ldi_init(lcd);
 
 	if (ret) {
-		dev_err(lcd->dev, "ldi power on failed\n");
+		dev_err(lcd->dev, "failed to initialize ldi.\n");
 		goto err_exit;
 	}
+	dev_dbg(lcd->dev, "ldi init successful\n");
 
-	/* set_power_mode will handle call platform_disable */
-	ret = lcd->mdd->set_power_mode(lcd->mdd, MCDE_DISPLAY_PM_STANDBY);
-	if (ret < 0)
-		dev_warn(&lcd->mdd->dev, "%s:Failed to resume display\n"
-			, __func__);
+	/*dpi ldi enable*/
+	ret = gavini_dpi_ldi_enable(lcd);
 
-	lcd->ldi_state = LDI_ON_STATUS;
+	if (ret) {
+		dev_err(lcd->dev, "failed to enable ldi.\n");
+		goto err_exit;
+	}
+	dev_dbg(lcd->dev, "ldi enable successful\n");
 
 	if (system_rev < GAVINI_R0_0_C) {
 		gavini_bl_power(lcd, 1);
 		gavini_update_brightness(lcd);
 	}
-	dev_dbg(lcd->dev, "ldi power on successful\n");
+
+	return ret;
 
 err_exit:
-	mutex_unlock(&lcd->lock);
+	return -EFAULT;
 }
 
 
@@ -823,15 +832,15 @@ static int gavini_power_off(struct gavini_lcd_driver *lcd)
 		dev_err(lcd->dev, "platform data is NULL.\n");
 		return -EFAULT;
 	}
-	
+
 	ret = gavini_panel_send_sequence(lcd, SET_DISPLAY_OFF);
 
 	if (pd->display_off_delay)
 		msleep(pd->display_off_delay);
-	
+
 	if (ret == 0)
-	    ret = gavini_panel_send_sequence(lcd, ENTER_SLEEP_MODE);
-	
+		ret = gavini_panel_send_sequence(lcd, ENTER_SLEEP_MODE);
+
 	if (ret) {
 		dev_err(lcd->dev, "lcd setting failed.\n");
 		return -EIO;
@@ -897,8 +906,7 @@ static irqreturn_t esd_interrupt_handler(int irq, void *data)
 		if (list_empty(&(lcd->esd_work.entry))) {
 			pr_info("%s esd_work_func queuing\n", __func__);
 			queue_work(lcd->esd_workqueue, &(lcd->esd_work));
-		}
-		else
+		} else
 			pr_info("%s esd_work_func is not empty\n", __func__);
 	} else
 		enable_irq(GPIO_TO_IRQ(lcd->esd_port));
@@ -912,21 +920,17 @@ static int gavini_power(struct gavini_lcd_driver *lcd, int power)
 	int ret = 0;
 
 	dev_dbg(lcd->dev, "Invoked %s\n", __func__);
-	printk("%s power:%d\n",__func__,power);
-	mutex_lock(&lcd->lock);
+	pr_info("%s power:%d\n", __func__, power);
 
 	dev_dbg(lcd->dev, "%s(): old=%d (%s), new=%d (%s)\n", __func__,
-		lcd->power, POWER_IS_ON(lcd->power)? "on": "off",
-		power, POWER_IS_ON(power)? "on": "off"
+		lcd->power, POWER_IS_ON(lcd->power) ? "on" : "off",
+		power, POWER_IS_ON(power) ? "on" : "off"
 		);
 
 	if (POWER_IS_ON(power) && !POWER_IS_ON(lcd->power))
-		gavini_start_power_on_timer(lcd);
+		ret = gavini_power_on(lcd);
 	else if (!POWER_IS_ON(power) && POWER_IS_ON(lcd->power))
-	{
 		ret = gavini_power_off(lcd);
-		mutex_unlock(&lcd->lock);
-	}
 
 	if (!ret)
 		lcd->power = power;
@@ -969,7 +973,7 @@ static int __init gavini_spi_probe(struct spi_device *spi)
 {
 	int ret = 0;
 	struct gavini_lcd_driver *lcd = gavini_spi_drv.lcd;
-	
+
 	dev_dbg(&spi->dev, "panel gavini spi being probed\n");
 
 	dev_set_drvdata(&spi->dev, lcd);
@@ -989,7 +993,7 @@ static int __init gavini_spi_probe(struct spi_device *spi)
 	 * if lcd panel was on from bootloader like u-boot then
 	 * do not lcd on.
 	 */
-	 
+
 	if (!lcd->pd->platform_enabled) {
 		/*
 		 * if lcd panel was off from bootloader then
@@ -1181,10 +1185,10 @@ static int gavini_mcde_panel_probe(struct mcde_display_device *ddev)
 	mutex_init(&lcd->lock);
 
 	gavini_spi_drv.lcd = lcd;
-	ret = spi_register_driver((struct spi_driver *)& gavini_spi_drv);
+	ret = spi_register_driver((struct spi_driver *) &gavini_spi_drv);
 	if (ret < 0) {
 		dev_err(&(ddev->dev), "Failed to register SPI driver");
-        goto out;
+		goto out;
 	}
 
 #ifdef CONFIG_LCD_CLASS_DEVICE
@@ -1225,12 +1229,12 @@ static int gavini_mcde_panel_probe(struct mcde_display_device *ddev)
 	lcd->earlysuspend.resume  = gavini_mcde_panel_late_resume;
 	register_early_suspend(&lcd->earlysuspend);
 #endif
-
+#if 0
 	if (prcmu_qos_add_requirement(PRCMU_QOS_APE_OPP,
 			"gavini_lcd_dpi", 100)) {
 		pr_info("pcrm_qos_add APE failed\n");
 	}
-
+#endif
 	dev_dbg(&ddev->dev, "DPI display probed\n");
 
 	goto out;
@@ -1249,9 +1253,13 @@ static int gavini_mcde_panel_resume(struct mcde_display_device *ddev)
 	int ret = 0;
 	struct gavini_lcd_driver *lcd = dev_get_drvdata(&ddev->dev);
 
-	printk("%s\n",__func__);
-	
 	dev_dbg(&ddev->dev, "Invoked %s\n", __func__);
+
+	/* set_power_mode will handle call platform_enable */
+	ret = ddev->set_power_mode(ddev, MCDE_DISPLAY_PM_STANDBY);
+	if (ret < 0)
+		dev_warn(&ddev->dev, "%s:Failed to resume display\n"
+			, __func__);
 
 	/*
 	 * after suspended, if lcd panel status is FB_BLANK_UNBLANK
@@ -1268,12 +1276,13 @@ static int gavini_mcde_panel_resume(struct mcde_display_device *ddev)
 	return ret;
 }
 
-static int gavini_mcde_panel_suspend(struct mcde_display_device *ddev, pm_message_t state)
+static int gavini_mcde_panel_suspend(struct mcde_display_device *ddev,
+							pm_message_t state)
 {
 	int ret = 0;
 	struct gavini_lcd_driver *lcd = dev_get_drvdata(&ddev->dev);
 
-	printk("%s\n",__func__);
+	pr_info("%s\n", __func__);
 	dev_dbg(&ddev->dev, "Invoked %s\n", __func__);
 
 	lcd->beforepower = lcd->power;
@@ -1327,11 +1336,13 @@ static int dpi_display_platform_disable(struct gavini_lcd_driver *lcd)
 	return res;
 }
 
-static void gavini_mcde_panel_early_suspend(struct early_suspend *earlysuspend)
+static void gavini_mcde_panel_early_suspend(struct early_suspend \
+								*earlysuspend)
 {
-	struct gavini_lcd_driver *lcd = container_of(earlysuspend, struct gavini_lcd_driver, earlysuspend);
+	struct gavini_lcd_driver *lcd = container_of(earlysuspend, \
+					struct gavini_lcd_driver, earlysuspend);
 	pm_message_t dummy;
-	printk("%s\n",__func__);
+	pr_info("%s\n", __func__);
 
 	#ifdef ESD_OPERATION
 	if (lcd->esd_enable) {
@@ -1352,27 +1363,30 @@ static void gavini_mcde_panel_early_suspend(struct early_suspend *earlysuspend)
 
 	gavini_mcde_panel_suspend(lcd->mdd, dummy);
 	dpi_display_platform_disable(lcd);
-
+#if 0
 	prcmu_qos_remove_requirement(PRCMU_QOS_APE_OPP,
 				"gavini_lcd_dpi");
+#endif
 }
 
-static void gavini_mcde_panel_late_resume(struct early_suspend *earlysuspend)
+static void gavini_mcde_panel_late_resume(struct early_suspend \
+								*earlysuspend)
 {
-	struct gavini_lcd_driver *lcd = container_of(earlysuspend, struct gavini_lcd_driver, earlysuspend);
+	struct gavini_lcd_driver *lcd = container_of(earlysuspend, \
+					struct gavini_lcd_driver, earlysuspend);
 
-	printk("%s\n",__func__);
+	pr_info("%s\n", __func__);
 
 	#ifdef ESD_OPERATION
 	if (lcd->lcd_connected)
 		enable_irq(GPIO_TO_IRQ(lcd->esd_port));
 	#endif
-
+#if 0
 	if (prcmu_qos_add_requirement(PRCMU_QOS_APE_OPP,
 			"gavini_lcd_dpi", 100)) {
 		pr_info("pcrm_qos_add APE failed\n");
 	}
-
+#endif
 	dpi_display_platform_enable(lcd);
 	gavini_mcde_panel_resume(lcd->mdd);
 
@@ -1383,7 +1397,7 @@ static void gavini_mcde_panel_late_resume(struct early_suspend *earlysuspend)
 		pr_info("%s change lcd->esd_enable :%d\n", __func__,
 				lcd->esd_enable);
 	} else
-		pr_info("%s lcd_connected : %d\n", lcd->lcd_connected);
+		pr_info("%s lcd_connected:%d\n", __func__, lcd->lcd_connected);
 	#endif
 
 }
@@ -1391,7 +1405,8 @@ static void gavini_mcde_panel_late_resume(struct early_suspend *earlysuspend)
 
 #endif
 
-static int gavini_mcde_panel_remove(struct mcde_display_device *ddev)
+static int gavini_mcde_panel_remove(struct mcde_display_device \
+									*ddev)
 {
 	struct gavini_lcd_driver *lcd = dev_get_drvdata(&ddev->dev);
 
@@ -1408,21 +1423,58 @@ static int gavini_mcde_panel_remove(struct mcde_display_device *ddev)
 	return 0;
 }
 
+static void gavini_mcde_panel_shutdown(struct mcde_display_device \
+									*ddev)
+{
+	struct gavini_lcd_driver *lcd = dev_get_drvdata(&ddev->dev);
+
+	pr_info("%s shutdown", __func__);
+	dev_dbg(&ddev->dev, "Invoked %s\n", __func__);
+
+	#ifdef ESD_OPERATION
+	if (lcd->esd_enable) {
+
+		lcd->esd_enable = 0;
+		disable_irq_nosync(GPIO_TO_IRQ(lcd->esd_port));
+
+		if (!list_empty(&(lcd->esd_work.entry))) {
+			cancel_work_sync(&(lcd->esd_work));
+			pr_info("%s cancel_work_sync", __func__);
+		}
+
+		destroy_workqueue(lcd->esd_workqueue);
+	}
+	#endif
+
+	gavini_power(lcd, FB_BLANK_POWERDOWN);
+
+
+	spi_unregister_driver((struct spi_driver *)&gavini_spi_drv);
+
+	#ifdef CONFIG_HAS_EARLYSUSPEND
+	unregister_early_suspend(&lcd->earlysuspend);
+	#endif
+
+	kfree(lcd);
+
+	dev_dbg(&ddev->dev, "end %s\n", __func__);
+}
+
 
 static struct mcde_display_driver gavini_mcde = {
 	.probe          = gavini_mcde_panel_probe,
 	.remove         = gavini_mcde_panel_remove,
-	.shutdown       = NULL,
+	.shutdown       = gavini_mcde_panel_shutdown,
 #ifdef CONFIG_HAS_EARLYSUSPEND
 	.suspend        = NULL,
 	.resume         = NULL,
 #else
 	.suspend		= gavini_mcde_panel_suspend,
-	.resume 		= gavini_mcde_panel_resume,
+	.resume		= gavini_mcde_panel_resume,
 #endif
 	.driver		= {
 		.name	= LCD_DRIVER_NAME_GAVINI,
-		.owner 	= THIS_MODULE,
+		.owner	= THIS_MODULE,
 	}
 };
 

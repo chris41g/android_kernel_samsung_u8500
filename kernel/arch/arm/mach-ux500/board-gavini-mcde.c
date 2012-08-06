@@ -22,11 +22,11 @@
 #include "pins-db8500.h"
 #include "pins.h"
 #include <mach/db8500-regs.h>
-	 
+
 #define DSI_UNIT_INTERVAL_0	0x9
 #define DSI_UNIT_INTERVAL_1	0x9
 #define DSI_UNIT_INTERVAL_2	0x6
-	 
+
 #ifdef CONFIG_FB_MCDE
 
 enum {
@@ -58,9 +58,18 @@ static int __init startup_graphics_setup(char *str)
 
 	return 1;
 
-}	 
+}
 __setup("startup_graphics=", startup_graphics_setup);
-	 
+
+unsigned int lcd_type;
+static int __init lcdtype_setup(char *str)
+{
+	get_option(&str, &lcd_type);
+
+	return 1;
+}
+__setup("lcdtype=", lcdtype_setup);
+
 static struct mcde_port port0 = {
 	.type = MCDE_PORTTYPE_DPI,
 	.pixel_format = MCDE_PORTPIXFMT_DPI_24BPP,
@@ -86,7 +95,7 @@ static int dpi_display_platform_enable(struct mcde_display_device *ddev)
 		dev_warn(&ddev->dev, "Failure during %s\n", __func__);
 	return res;
 }
-	 
+
 static int dpi_display_platform_disable(struct mcde_display_device *ddev)
 {
 	int res = 0;
@@ -140,6 +149,44 @@ struct ssg_dpi_display_platform_data gavini_dpi_pri_display_info = {
 
 	.reset 		= pri_display_reset,
 	.power_on 	= pri_display_power_on,
+
+	.gpio_cfg_earlysuspend = lcd_gpio_cfg_earlysuspend,
+	.gpio_cfg_lateresume = lcd_gpio_cfg_lateresume,
+};
+
+struct ssg_dpi_display_platform_data gavini_dpi_pri_display_info_r0_3 = {
+	.platform_enabled	= false,
+	.reset_high		= false,
+	.reset_gpio		= LCD_RESX_GAVINI_R0_0,
+	.pwr_gpio		= LCD_PWR_EN_GAVINI_R0_0,
+	.bl_en_gpio		= LCD_BL_CTRL_GAVINI_R0_3,
+
+	.power_on_delay		= 50,
+	.reset_delay		= 10,
+	.sleep_out_delay	= 20,
+
+	.display_off_delay	= 25,
+	.sleep_in_delay		= 120,
+
+	.video_mode.xres	= 480,
+	.video_mode.yres	= 800,
+	.video_mode.hsw		= 4,	/* 2, */
+	.video_mode.hbp		= 40,	/* 2, */
+	.video_mode.hfp		= 10,	/* 10, */
+	.video_mode.vsw		= 1,
+	.video_mode.vbp		= 7,	/* 4 */
+	.video_mode.vfp		= 6,
+	.video_mode.interlaced	= false,
+
+	/*
+	 * The pixclock setting is not used within MCDE. The clock is
+	 * setup elsewhere. But the pixclock value is visible in user
+	 * space.
+	 */
+	.video_mode.pixclock = (int)(1e+12 * (1.0 / PRCMU_DPI_CLK_FREQ)),
+
+	.reset		= pri_display_reset,
+	.power_on	= pri_display_power_on,
 
 	.gpio_cfg_earlysuspend = lcd_gpio_cfg_earlysuspend,
 	.gpio_cfg_lateresume = lcd_gpio_cfg_lateresume,
@@ -217,7 +264,7 @@ static struct mcde_display_device generic_display0 = {
 	.port = &port0,
 	.chnl_id = MCDE_CHNL_A,
 	.fifo = MCDE_FIFO_A,
-	.default_pixel_format = MCDE_OVLYPIXFMT_RGBA8888,//support RGBA888 for gavini
+	.default_pixel_format = MCDE_OVLYPIXFMT_RGBA8888,/*RGBA888*/
 	.native_x_res = 480,
 	.native_y_res = 800,
 	.rotbuf1 = U8500_ESRAM_BASE + 0x20000 * 4 + 0x2000,
@@ -231,7 +278,28 @@ static struct mcde_display_device generic_display0 = {
 	.platform_disable = dpi_display_platform_disable,
 	#endif
 };	 
-	 	 
+
+static struct mcde_display_device generic_display0_r0_3 = {
+	.name = LCD_DRIVER_NAME_GAVINI,
+	.id = PRIMARY_DISPLAY_ID,
+	.port = &port0,
+	.chnl_id = MCDE_CHNL_A,
+	.fifo = MCDE_FIFO_A,
+	.default_pixel_format = MCDE_OVLYPIXFMT_RGBA8888, /*RGBA888*/
+	.native_x_res = 480,
+	.native_y_res = 800,
+	.rotbuf1 = U8500_ESRAM_BASE + 0x20000 * 4 + 0x2000,
+	.rotbuf2 = U8500_ESRAM_BASE + 0x20000 * 4 + 0x10000 + 0x1000,
+	/* .synchronized_update: Don't care: port is set to update_auto_trig */
+	.dev = {
+		.platform_data = &gavini_dpi_pri_display_info_r0_3,
+	},
+	#ifndef CONFIG_HAS_EARLYSUSPEND
+	.platform_enable = dpi_display_platform_enable,
+	.platform_disable = dpi_display_platform_disable,
+	#endif
+};
+
 
 static int display_postregistered_callback(struct notifier_block *nb,
 	unsigned long event, void *dev)
@@ -342,7 +410,7 @@ out:
 static struct notifier_block framebuffer_nb = {
 	.notifier_call = framebuffer_postregistered_callback,
 };
-	 
+
 int __init init_gavini_display_devices(void)
 {
 	int ret;
@@ -350,24 +418,42 @@ int __init init_gavini_display_devices(void)
 	ret = fb_register_client(&framebuffer_nb);
 	if (ret)
 		pr_warning("Failed to register framebuffer notifier\n");
-	 
+
 	ret = mcde_dss_register_notifier(&display_nb);
 	if (ret)
 		pr_warning("Failed to register dss notifier\n");
-	 
-	if (display_initialized_during_boot) {
-		generic_display0.power_mode = MCDE_DISPLAY_PM_ON;
-		gavini_dpi_pri_display_info.platform_enabled = 1;
+
+	if (system_rev >= GAVINI_R0_3) {
+		if (display_initialized_during_boot) {
+			generic_display0_r0_3.power_mode = MCDE_DISPLAY_PM_ON;
+			gavini_dpi_pri_display_info_r0_3.platform_enabled = 1;
+		}
+
+		/*
+		 * The pixclock setting is not used within MCDE. The clock is
+		 * setup elsewhere. But the pixclock value is visible in user
+		 * space.
+		 */
+		gavini_dpi_pri_display_info_r0_3.video_mode.pixclock /= \
+						port0.phy.dpi.clock_div;
+
+		ret = mcde_display_device_register(&generic_display0_r0_3);
+	} else {
+		if (display_initialized_during_boot) {
+			generic_display0.power_mode = MCDE_DISPLAY_PM_ON;
+			gavini_dpi_pri_display_info.platform_enabled = 1;
+		}
+
+		/*
+		 * The pixclock setting is not used within MCDE. The clock is
+		 * setup elsewhere. But the pixclock value is visible in user
+		 * space.
+		 */
+		gavini_dpi_pri_display_info.video_mode.pixclock /= \
+						port0.phy.dpi.clock_div;
+
+		ret = mcde_display_device_register(&generic_display0);
 	}
-
-	/*
-	 * The pixclock setting is not used within MCDE. The clock is
-	 * setup elsewhere. But the pixclock value is visible in user
-	 * space.
-	 */
-	gavini_dpi_pri_display_info.video_mode.pixclock /= port0.phy.dpi.clock_div;
-
-	ret = mcde_display_device_register(&generic_display0);
 	if (ret)
 		pr_warning("Failed to register generic display device 0\n");
 

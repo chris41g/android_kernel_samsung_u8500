@@ -110,21 +110,13 @@ static int pcpu_alloc_pages(struct pcpu_chunk *chunk,
 {
 	const gfp_t gfp = GFP_KERNEL | __GFP_HIGHMEM | __GFP_COLD;
 	unsigned int cpu;
-	int nid;
 	int i;
 
 	for_each_possible_cpu(cpu) {
 		for (i = page_start; i < page_end; i++) {
 			struct page **pagep = &pages[pcpu_page_idx(cpu, i)];
 
-			//*pagep = alloc_pages_node(cpu_to_node(cpu), gfp, 0);
-			nid = cpu_to_node(cpu);
-
-			if((nid == -1) || !(node_zonelist(nid, GFP_KERNEL)->_zonerefs->zone))
-				nid = numa_node_id();
-
-			*pagep = alloc_pages_node(nid, gfp, 0);
-			
+			*pagep = alloc_pages_node(cpu_to_node(cpu), gfp, 0);
 			if (!*pagep) {
 				pcpu_free_pages(chunk, pages, populated,
 						page_start, page_end);

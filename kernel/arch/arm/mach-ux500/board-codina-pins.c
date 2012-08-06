@@ -259,12 +259,12 @@ static UX500_PINS(codina_r0_0_i2c0,
 );
 	/* Touchscreen I2C */
 static UX500_PINS(codina_r0_0_i2c3,
-/*
 	GPIO229_I2C3_SDA,
 	GPIO230_I2C3_SCL,
-*/
+/*
 	GPIO229_GPIO,
 	GPIO230_GPIO,
+*/
 );
 
 static UX500_PINS(codina_r0_0_mcde_dpi,
@@ -564,8 +564,8 @@ static pin_cfg_t codina_common_sleep_table[] = {
 /*	GPIO138_GPIO | PIN_OUTPUT_HIGH, */
 /*	GPIO139_GPIO | PIN_OUTPUT_LOW, */ /* LCD_RESX */
 
-	GPIO140_GPIO | PIN_OUTPUT_LOW,  /* CAM_FLASH_EN */
-	GPIO141_GPIO | PIN_OUTPUT_LOW,  /* CAM_FLASH_MODE */
+/*	GPIO140_GPIO | PIN_OUTPUT_LOW, */ /* CAM_FLASH_EN */
+/*	GPIO141_GPIO | PIN_OUTPUT_LOW, */ /* CAM_FLASH_MODE */
 	GPIO142_GPIO | PIN_OUTPUT_LOW,  /* 5M_CAM_STBY */
 	GPIO143_GPIO | PIN_INPUT_NOPULL,
 	GPIO144_GPIO | PIN_INPUT_NOPULL,

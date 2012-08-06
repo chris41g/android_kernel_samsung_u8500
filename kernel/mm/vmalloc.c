@@ -104,10 +104,8 @@ static int vmap_pte_range(pmd_t *pmd, unsigned long addr,
 	do {
 		struct page *page = pages[*nr];
 
-		//WARN(!pte_none(*pte), "!pte_none(*%p)\n", pte);
-		if(!pte_none(*pte))
-			printk(KERN_ERR "!pte_none(*%p)\n", pte);
-
+		if (WARN_ON(!pte_none(*pte)))
+			return -EBUSY;
 		if (WARN_ON(!page))
 			return -ENOMEM;
 		set_pte_at(&init_mm, addr, pte, mk_pte(page, prot));
@@ -165,10 +163,7 @@ static int vmap_page_range_noflush(unsigned long start, unsigned long end,
 	int err = 0;
 	int nr = 0;
 
-//	BUG_ON(addr >= end);
-	if (WARN_ON(addr >= end))
-		return -ENOMEM;
-	
+	BUG_ON(addr >= end);
 	pgd = pgd_offset_k(addr);
 	do {
 		next = pgd_addr_end(addr, end);
